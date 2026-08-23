@@ -7,7 +7,11 @@ import { type SeedPlan } from '../components/reshape/seed-plan'
 import { CreatorSignup } from '../components/creator/CreatorSignup'
 import { CreatorFeed } from '../components/creator/CreatorFeed'
 import { CreatorHero } from '../components/creator/CreatorHero'
+import { CreatorScorecard } from '../components/creator/CreatorScorecard'
 import { BundleShelf } from '../components/BundleShelf'
+import { Carousel } from '../components/Carousel'
+import { DexSwapCard } from '../components/DexSwapCard'
+import { chainCfg } from '../lib/chain/chains'
 import { BundleForge } from '../components/BundleForge'
 import brand from '../brand.config'
 import { pageEnabled } from '../theme/brand'
@@ -28,12 +32,11 @@ import { useQueries } from '@tanstack/react-query'
 import { ensureLaunchIndex, type BasketSummary } from '../lib/spectrum/basket-data'
 import { launchTimeLookup } from '../lib/spectrum/basket-sort'
 import { groupIntoTheses, type Thesis } from '../lib/spectrum/thesis'
-import { thesisHref } from '../lib/spectrum/thesis-url'
 import { isDemoLegAddress } from '../lib/spectrum/thesis-run-types'
 import { ThesisDoorCard } from '../components/ThesisCard'
 import { ReshapeThesisModal } from '../components/reshape/ReshapeThesisModal'
 import { JoinBundlePicker } from '../components/reshape/JoinBundlePicker'
-import { DEPLOY_ENABLED } from '../lib/config/features'
+import { DEPLOY_ENABLED, SWAP_ENABLED } from '../lib/config/features'
 import { basketHref } from '../lib/spectrum/short-url'
 import { VersionButton } from '../components/VersionButton'
 import { usePrefersReducedMotion } from '../lib/motion'
@@ -98,104 +101,6 @@ const foldName = (s: string | null | undefined) =>
 // bundle card already wears carry the one-per-network fact, and a leg's own
 // page keeps its full console. The per-leg held marks and version pills went
 // with the wall, on the same ruling.)
-
-/** THEIR CROSS-CHAIN IDEAS (the owner 2026-08-09) — one create session that picked
- *  assets on several chains ships several baskets, and this page has always
- *  listed those siblings as strangers. Each chip is the door to that idea's own
- *  page, where it reads as the one product it was meant to be.
- *
- *  Multi-chain groups only (the grouper's default; the page groups once and
- *  hands the list in): a single-chain basket is already fully described by its
- *  own card below, and a "bundle" door to one basket would be a second name
- *  for the same thing. Absent entirely when they have none, so no visitor
- *  meets a heading standing over an empty row.
- *
- *  MINUS THE SHOWCASED ONE (QoL 2026-08-12): theses[0] — the biggest, the
- *  grouper's own order — leads the showcase plate directly below this strip,
- *  so the mount hands the strip the REST. A one-bundle creator therefore has
- *  no strip at all (the zero-check below — never an empty band): their bundle
- *  reads once, full size, from the plate instead of twice in a row.
- *
- *  THE CREATOR'S CORNER (the owner 2026-08-10: "a way for them to edit the entire
- *  thing using the reshape system"): a quiet Edit pill rides each card's top
- *  right — the bundle reshape popup's door, the Thesis page's own "Edit
- *  bundle" made per-card. Gate is that page's exact rule: the creator on a
- *  deploy-capable build, or a demo bundle, which shows its entry to everyone
- *  so the scripted walkthrough stays reachable. The shared ThesisDoorCard is
- *  untouched — the overlay is this call site's, wrapped around it.
- *
- *  THE ACTIONS RIDE EACH CARD'S FOOT (the owner 2026-08-16, superseding both the
- *  2026-08-13 leg rows and the floating Edit pill): the public card, then one
- *  visible row of creator buttons under it — the standalone card's own footer
- *  grammar. No leg wall, no toggle.
- *
- *  THE SMALL STRIP DIED THE SAME DAY (the owner, live, on the compact cards that
- *  sat ABOVE the showcase plate: "if we have this nicer looking section …
- *  i want the info all there not above") — every remaining bundle now renders
- *  BELOW the plate in the showcase's own md face (chart, composite bento,
- *  combined price, TVL), two per row, the standalone grid's exact rail
- *  grammar. One section, one card language. */
-function TheirTheses({
-  theses,
-  isMe,
-  onEdit,
-  unseededKeys,
-}: {
-  theses: Thesis[]
-  isMe: boolean
-  onEdit: (t: Thesis) => void
-  unseededKeys: Set<string>
-}) {
-  if (theses.length === 0) return null
-  return (
-    // the standalone grid's rail: a snap slideshow on phones, a two-up grid
-    // from lg — an md card per screen keeps each bundle whole on a phone.
-    <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:grid lg:snap-none lg:grid-cols-2 lg:items-start lg:gap-x-12 lg:gap-y-14 lg:overflow-visible lg:px-0 lg:pb-0">
-      {theses.map((t) => {
-        const editable = (DEPLOY_ENABLED && isMe) || t.legs.some((l) => isDemoLegAddress(l.address))
-        return (
-          <div
-            key={t.name}
-            className="min-w-0 shrink-0 basis-[86%] snap-start sm:basis-[62%] lg:basis-auto lg:shrink"
-          >
-            <ThesisDoorCard thesis={t} size="md" />
-            {/* the creator's buttons, docked under the public face — the
-                card-footer grammar (the owner 2026-08-16); the old floating Edit
-                pill lives in this row now */}
-            {editable && (
-              <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                <ProductActions
-                  legs={t.legs}
-                  isMe={isMe}
-                  onEditBundle={() => onEdit(t)}
-                  unseededKeys={unseededKeys}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
-      {/* the quiet door to the NEXT bundle, riding the row the bundles live on
-          (creator-only; gated on the composer's own page key so it is never a
-          dead door). No machinery — /createbasket is the compose flow. */}
-      {isMe && pageEnabled(brand.pages, 'launch') && (
-        <Link
-          /* the MAIN create flow, not the composer and never the legacy
-             /create (owner 2026-08-16 ×2: "takes you to composer not the
-             create page" · "we should never use the old create flow") */
-          to={flowHref('publish') ?? '/createbasket'}
-          title="Pick assets on several networks to compose a bundle"
-          className="press flex min-w-0 shrink-0 basis-[86%] snap-start flex-col justify-center rounded-2xl border border-dashed border-white/12 p-6 transition-colors hover:border-violet/60 sm:basis-[62%] lg:basis-auto lg:shrink"
-        >
-          <span className="font-display text-base font-bold text-ink">+ New bundle</span>
-          <span className="mt-2 max-w-[26ch] font-mono text-[10px] uppercase leading-relaxed tracking-[0.12em] text-ink-faint">
-            pick assets on several networks to compose a bundle
-          </span>
-        </Link>
-      )}
-    </div>
-  )
-}
 
 /** "ADD TO A BUNDLE" ON A SINGLE BASKET (the owner 2026-08-10: "the ability to
  *  link one basket to a bundle") — the join door, riding the cell's action
@@ -895,14 +800,10 @@ export function Creator() {
 
   const hero = (
     <>
-      {/* back to the creators leaderboard (owner QoL 2026-08-21) — navigational,
-          no data cost; connects a profile to where it is ranked. */}
-      <Link
-        to="/creators/explore"
-        className="press -mb-2 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-faint transition-colors hover:text-ink"
-      >
-        <span aria-hidden>←</span> Creators
-      </Link>
+      {/* The second back link is GONE (owner 2026-08-23: "shouldn't be two
+          buttons in top left"). This one sat stacked over the hero's own back
+          control; the hero's survives and now carries the history-aware
+          behaviour (back to wherever you came from, /creators when direct). */}
       <CreatorHero
         profile={profile}
         identityMeta={identityMeta ?? null}
@@ -911,6 +812,34 @@ export function Creator() {
         ownerBar={ownerBar}
         handle={pageHandle.lookup.status === 'found' ? pageHandle.lookup.owner : null}
       />
+      {/* THE STREAMLINED BUY, FIRST (owner 2026-08-23: "a streamlined version
+          of Buy into their book on the creator page above Their record") - the
+          REAL console in its strip form, the same variant Explore and the list
+          rows mount, never a recreation. The full card at the page foot stays:
+          this is the impatient reader's door, that one is the convinced
+          reader's close. Same basket choice as the foot: the chain being
+          browsed when they have one there, else their largest. */}
+      {SWAP_ENABLED &&
+        (() => {
+          const here = profile.baskets.find((b) => b.chainId === activeChainId) ?? profile.baskets[0]
+          if (!here) return null
+          return (
+            <div className="mx-auto mt-10 max-w-md">
+              <div className="mb-3 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
+                Buy into their book · {chainCfg(here.chainId).name}
+              </div>
+              <DexSwapCard chainId={here.chainId} initialBasket={here.address} strip stayHere />
+            </div>
+          )
+        })()}
+
+      {/* THEIR RECORD, PER BASKET, DIRECTLY UNDER THE HERO (owner 2026-08-22:
+          "performance overall and per basket close to the top"). The hero holds
+          the overall number and its curve; this holds each basket's own return
+          and, where they replaced one with a new version, what that change did. */}
+      <div className="mx-auto w-full max-w-[1240px] px-4 sm:px-6">
+        <CreatorScorecard creator={profile.address} baskets={profile.baskets} />
+      </div>
     </>
   )
 
@@ -1029,13 +958,17 @@ export function Creator() {
                section still counts everything. Creators with NO bundle keep
                the most-held basket plate exactly as it shipped. ── */}
         {(() => {
-          const bundle = theses[0] ?? null
-          const flagship = bundle
+          /* EVERY BUNDLE RIDES THE RAIL NOW (owner 2026-08-23, second word on
+             the same day: "all of this should show in the carousel" - the
+             biggest included, actions and the +New door with it). The
+             2026-08-12 bundle-takes-the-plate arrangement retires with it; the
+             most-held PLATE survives only for creators with no bundle at all. */
+          const flagship = theses.length > 0
             ? null
             : ([...profile.baskets].sort(
                 (a, b) => (b.holdersCount ?? 0) - (a.holdersCount ?? 0) || b.aumUsd - a.aumUsd,
               )[0] ?? null)
-          if (!bundle && !flagship) return null
+          if (theses.length === 0 && !flagship) return null
           // THE LEGS LEAVE THE GRID (the owner 2026-08-13, the grouped-legs ruling
           // above BundleLegSet): a bundle's per-network baskets render as
           // compact rows under their bundle's presence — the showcase plate
@@ -1057,51 +990,7 @@ export function Creator() {
           )
           return (
             <>
-              {bundle ? (
-                <Bezel glow="var(--color-violet)">
-                  {/* the padding lives on this wrapper (not the grid) so the
-                      legs band below the two columns shares the plate's own
-                      gutters — one plate, one product. */}
-                  <div className="p-6 sm:p-10">
-                    {/* min-w-0 on both columns: a grid item floors at
-                        min-content by default, which let the card widen its
-                        column and clip itself (mobile sweep 2026-08-06). */}
-                    <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-12">
-                      <div className="min-w-0">
-                        <Eyebrow tone="spectral">{theses.length > 1 ? 'biggest bundle' : 'their bundle'}</Eyebrow>
-                        <div className="mt-5">
-                          <BasketProse
-                            basket={bundle.legs[0].address}
-                            chainId={bundle.legs[0].chainId}
-                            mine={isMe}
-                            href={thesisHref(bundle.deployer, bundle.name)}
-                            door="bundle"
-                            assetCount={bundle.legs.reduce((s, l) => s + l.basketLength, 0)}
-                            launchedAt={launchedAtOf(bundle.legs[0])}
-                          />
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <ThesisDoorCard thesis={bundle} size="md" />
-                        {/* the creator's buttons, docked under the public
-                            face — the card-footer grammar (the owner 2026-08-16;
-                            the plate-foot leg wall retired on the same word:
-                            the card's own chain badges carry one-per-network) */}
-                        {((DEPLOY_ENABLED && isMe) || bundle.legs.some((l) => isDemoLegAddress(l.address))) && (
-                          <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                            <ProductActions
-                              legs={bundle.legs}
-                              isMe={isMe}
-                              onEditBundle={() => setEditBundle(bundle)}
-                              unseededKeys={unseededKeys}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Bezel>
-              ) : flagship && (
+              {flagship && (
                 <Bezel glow={basketSignatureColor(flagship.address, flagship.top[0])}>
                   {/* min-w-0 on both columns: a grid item floors at min-content
                       by default, which let the card widen its column and clip
@@ -1144,13 +1033,6 @@ export function Creator() {
                 </Bezel>
               )}
 
-              {/* ── THE OTHER BUNDLES, IN THE SAME NICE FACE (the owner 2026-08-16
-                     live: "if we have this nicer looking section … i want the
-                     info all there not above") — every remaining bundle, below
-                     the plate, as the md card the plate itself uses, each with
-                     its action footer. ── */}
-              <TheirTheses theses={theses.slice(1)} isMe={isMe} onEdit={setEditBundle} unseededKeys={unseededKeys} />
-
               {/* ── THE GENUINELY NEW, TWO PER ROW (owner 2026-08-09: "after
                      the spotlight, their next baskets should all be via a grid
                      of two per row"). The spotlight above is the wide plate;
@@ -1185,7 +1067,7 @@ export function Creator() {
                      enters. `min-w-0` on the cell for the same reason it is on
                      the spotlight's columns — a grid item floors at
                      min-content, and without it a wide card clips itself. ── */}
-              {rest.length > 0 && (
+              {(rest.length > 0 || theses.length > 0) && (
                 /* ── A SLIDESHOW ON PHONES, A TWO-UP GRID ABOVE (the owner
                       2026-08-09: "make that a slideshow for mobile"). Stacked
                       vertically, three baskets each carrying a card, a thesis
@@ -1201,7 +1083,77 @@ export function Creator() {
                       page gutter. From `lg` the scroll container becomes a plain
                       grid and every snap class stops applying, so the desktop
                       layout is exactly the two-up grid and nothing else. ── */
-                <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:grid lg:snap-none lg:grid-cols-2 lg:items-start lg:gap-x-12 lg:gap-y-14 lg:overflow-visible lg:px-0 lg:pb-0">
+                /* A CAROUSEL AT EVERY WIDTH NOW (owner 2026-08-22: "the
+                   baskets/bundles in a stunning slideshow carousel scroll with
+                   arrow click or scroll"). It used to become a two-up grid at
+                   lg, so a desktop reader saw a wall rather than a collection.
+                   The shared Carousel primitive already does exactly this and
+                   already carries an `arrows` prop documented for this case —
+                   "turn them on when the rail survives past phone widths, where
+                   a mouse has no swipe" — so this is its first caller with
+                   gridFrom="never". Native scroll underneath, so momentum,
+                   trackpad, keyboard and reduced-motion all still come from the
+                   platform; the arrows only add a mouse affordance. */
+                /* ALMOST FULL WIDTH (owner 2026-08-22: "an almost full width
+                   expansive slideshow of their baskets"). The app shell holds
+                   every page in a 1000px column; this breaks out of it the same
+                   way the hero band does — left-1/2, w-screen, translate back —
+                   and then caps at 1560 with its own gutters, so the rail is
+                   expansive without running to a 4K screen's edges. `peek` drops
+                   because at this width a card at 86% is enormous: 42% shows two
+                   and a bit, which is what makes it read as a collection you are
+                   moving through. */
+                <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-8">
+                <Carousel
+                  label={`Baskets by ${identityMeta?.name || identityMeta?.handle || 'this creator'}`}
+                  gridFrom="never"
+                  arrows
+                  peek="42%"
+                  resetKey={theses.length + rest.length}
+                  className="mx-auto max-w-[1560px] pt-4"
+                >
+                  {/* THE BUNDLES LEAD THE RAIL, ALL OF THEM (owner 2026-08-23:
+                      "all of this should show in the carousel" - the biggest
+                      included, superseding the same day's slice(1) cut and the
+                      2026-08-12 bundle-plate). Same md face, same footer
+                      grammar, first in the running order, the +New door riding
+                      with them. */}
+                  {theses.map((t) => {
+                    const editable = (DEPLOY_ENABLED && isMe) || t.legs.some((l) => isDemoLegAddress(l.address))
+                    return (
+                      <div
+                        key={`bundle:${t.name}`}
+                        className="h-full min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 lg:p-6"
+                      >
+                        <ThesisDoorCard thesis={t} size="md" />
+                        {editable && (
+                          <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                            <ProductActions
+                              legs={t.legs}
+                              isMe={isMe}
+                              onEditBundle={() => setEditBundle(t)}
+                              unseededKeys={unseededKeys}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {/* the quiet door to the NEXT bundle rides the bundles it
+                      belongs with (creator-only, gated on the composer's own
+                      page key so it is never a dead door) */}
+                  {theses.length > 0 && isMe && pageEnabled(brand.pages, 'launch') && (
+                    <Link
+                      to={flowHref('publish') ?? '/createbasket'}
+                      title="Pick assets on several networks to compose a bundle"
+                      className="press flex h-full min-w-0 flex-col justify-center rounded-2xl border border-dashed border-white/12 p-6 transition-colors hover:border-violet/60"
+                    >
+                      <span className="font-display text-base font-bold text-ink">+ New bundle</span>
+                      <span className="mt-2 max-w-[26ch] font-mono text-[10px] uppercase leading-relaxed tracking-[0.12em] text-ink-faint">
+                        pick assets on several networks to compose a bundle
+                      </span>
+                    </Link>
+                  )}
                   {rest.map((ix) => (
                     /* ONE CARD PER BASKET (the owner 2026-08-09: "should be a bg
                        card for each basket + thesis + button"; the thesis half
@@ -1212,7 +1164,9 @@ export function Creator() {
                        on a phone; both are dropped at lg. */
                     <div
                       key={`${ix.chainId}:${ix.address}`}
-                      className="min-w-0 shrink-0 basis-[86%] snap-start rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:basis-[62%] sm:p-5 lg:basis-auto lg:shrink lg:p-6"
+                      /* the snap/basis machinery moved to the Carousel, which
+                         owns the rail; this is just the card's own surface */
+                      className="h-full min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 lg:p-6"
                     >
                       <BasketCard
                         ix={ix}
@@ -1231,12 +1185,73 @@ export function Creator() {
                       />
                     </div>
                   ))}
+                </Carousel>
                 </div>
               )}
             </>
           )
         })()}
       </section>
+
+      {/* ── BUY INTO THEIR BOOK, WITHOUT LEAVING THEIR PAGE (owner 2026-08-22:
+             "a little swap card which allows you to swap into a basket of theirs
+             with ease on the same page") ──────────────────────────────────────
+             The console the /swap page and the basket page already use, in its
+             compact form, preselected to a basket of theirs on the chain the
+             reader is viewing. `stayHere` because the host owns the flow: a
+             visitor who buys from a creator's page is reading that creator, so
+             the success primary stays put instead of handing them to their
+             portfolio — the 2026-08-16 portfolio-primary ruling scoped, not
+             blanket-applied.
+
+             Only when they actually have a basket on the ACTIVE chain: the
+             console takes one chainId, so preselecting a basket from another
+             network would arm a card against the wrong chain. Absent rather
+             than wrong. */}
+      {SWAP_ENABLED &&
+        (() => {
+          // Prefer a basket on the chain the reader is already browsing, and
+          // otherwise their largest: the console takes an EXPLICIT chainId (the
+          // basket page passes the basket's own), so there is no reason to hide
+          // the card just because their book lives on another network. Hiding it
+          // was the first cut of this and it meant a Base creator's page showed
+          // no way to buy while the toggle sat on Robinhood.
+          const here = profile.baskets.find((b) => b.chainId === activeChainId) ?? profile.baskets[0]
+          if (!here) return null
+          return (
+            <section className="mt-16">
+              <div className="text-center">
+                <h2 className="font-display text-sm font-semibold uppercase tracking-[0.2em] text-ink">
+                  Buy into their book
+                </h2>
+                <span className="mt-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
+                  on {chainCfg(here.chainId).name}
+                </span>
+              </div>
+              {/* CENTRED, with the creator door under it (owner 2026-08-22).
+                  A buy console left-aligned in a 1240px column reads as a
+                  fragment of a form; centred it reads as the page's closing
+                  action. And the button below it is the honest next step for the
+                  person this page just convinced: they came to read a creator,
+                  so the offer is to become one. */}
+              <div className="mx-auto mt-5 flex max-w-xl flex-col items-center">
+                <div className="w-full">
+                  <DexSwapCard chainId={here.chainId} initialBasket={here.address} stayHere />
+                </div>
+                <Link
+                  to="/creators"
+                  className="press mt-8 inline-flex h-11 items-center rounded-full px-6 font-display text-sm font-bold uppercase tracking-[0.12em] text-void transition-transform hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(90deg,var(--color-cyan),var(--color-violet-bright),var(--color-magenta))' }}
+                >
+                  Become a creator →
+                </Link>
+                <span className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint">
+                  no code · about a minute
+                </span>
+              </div>
+            </section>
+          )
+        })()}
 
       {/* their bundles — the packaged version of the baskets above. Still part
           of what they made, so it stays with the evidence. On your OWN page it

@@ -39,7 +39,7 @@ export function QuickBuy({
       aria-label={symbol ? `Buy $${showSymbol(symbol)}` : 'Buy this basket'}
       /* 36px below sm (mobile sweep 2026-08-06: measured 64x27 — the primary
          conversion control was the smallest target on the creator page) */
-      className={`press inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg bg-cyan px-3.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black transition-transform hover:scale-[1.03] sm:min-h-0 ${className}`}
+      className={`press inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg bg-cyan px-3.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-void transition-transform hover:scale-[1.03] sm:min-h-0 ${className}`}
     >
       Buy
       <span aria-hidden>→</span>

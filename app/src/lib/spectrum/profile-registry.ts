@@ -1,4 +1,5 @@
 import { getAddress, isAddress, keccak256, parseAbi, parseAbiItem, parseEventLogs, stringToHex, type Address, type PublicClient } from 'viem'
+import { parseProofPostId } from './x-proof'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // On-chain notes — the chain as the metadata store (lab 2026-07-28; kind
@@ -76,6 +77,13 @@ export interface OnchainProfileJson {
   /** Declared posting delegate (a hot wallet allowed to write kind:"post"
    *  notes AS this creator — readers chip its posts "via delegate"). */
   delegate?: string
+  /** X link-back proof: the POST ID ONLY, never a URL — x-proof.ts rebuilds
+   *  every destination from literals, which is what keeps a typed value from
+   *  steering a link under a "posted by the creator" heading.
+   *  It is a CLAIM, not a verification: the BUILD checks it
+   *  (scripts/build-creator-proofs.mjs), so nothing a creator writes here can
+   *  make their own badge read verified. */
+  xProof?: string
 }
 
 /** Serialize profile-editor state for `setNote(self, …)` calldata. */
@@ -87,6 +95,7 @@ export function encodeProfileJson(input: {
   bio?: string
   picks?: { address: string; note?: string | null }[]
   delegate?: string
+  xProof?: string
 }): string {
   const picks = (input.picks ?? []).filter((p) => isAddress(p.address, { strict: false }))
   const out: OnchainProfileJson = { v: 1 }
@@ -100,6 +109,10 @@ export function encodeProfileJson(input: {
     out.pickNotes = picks.map((p) => (p.note ?? '').trim())
   }
   if (input.delegate && isAddress(input.delegate, { strict: false })) out.delegate = getAddress(input.delegate)
+  // Normalized to digits by the parser before it is ever stored, so a pasted
+  // URL cannot survive into the note as a destination.
+  const proof = parseProofPostId(input.xProof)
+  if (proof) out.xProof = proof
   return JSON.stringify(out)
 }
 
@@ -113,6 +126,7 @@ function profileShapeCheck(v: unknown): OnchainProfileJson | null {
   if (!str(b.name) || !str(b.handle) || !str(b.avatarUrl) || !str(b.bannerUrl) || !str(b.bio)) return null
   if (!strArr(b.picks) || !strArr(b.pickNotes)) return null
   if (!str(b.delegate)) return null
+  if (!str(b.xProof)) return null
   return v as OnchainProfileJson
 }
 
@@ -132,6 +146,7 @@ export function onchainToIdentityMeta(
   pickNotes: string[]
   issuedAt: number
   delegate: Address | null
+  xProof: string | null
 } {
   // Zip THEN filter (audit L4): filtering first and indexing pickNotes by the
   // FILTERED position against the UNFILTERED notes array made a surviving pick
@@ -153,6 +168,10 @@ export function onchainToIdentityMeta(
     issuedAt: Number(blockNumber),
     delegate:
       json.delegate && isAddress(json.delegate, { strict: false }) ? getAddress(json.delegate) : null,
+    // Re-parsed on the way OUT as well as in: a note written by an older or
+    // hand-rolled client is foreign data, so it earns the same digits-only
+    // treatment as a freshly typed value.
+    xProof: parseProofPostId(json.xProof),
   }
 }
 

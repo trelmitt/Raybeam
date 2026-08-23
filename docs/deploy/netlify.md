@@ -84,6 +84,12 @@ the site's generic card. Details: `app/netlify/edge-functions/README.md`.
 - **Build can't find `npm`/wrong Node.** Add env var `NODE_VERSION` = `20` and retry.
 - **Social cards show the generic card for a new basket.** Regenerate `/tokenlist.json`
   (`npm run build:tokenlist`) and redeploy.
+- **A creator's X badge is missing, or is still showing after their handle changed.**
+  The verified flag is *compiled in*, not looked up at page load, so it only moves when you
+  regenerate it: `npm run build:creator-proofs` (from `app/`) and redeploy. The daily canary
+  tells you when a live badge has gone false; it cannot remove it for you. Ethereum and Base
+  need `ALCHEMY_KEY` for this step — the free public RPCs refuse the log reads it does.
+  See [OPERATORS.md](../../app/OPERATORS.md#creator-x-verification-npm-run-buildcreator-proofs).
 
 ---
 

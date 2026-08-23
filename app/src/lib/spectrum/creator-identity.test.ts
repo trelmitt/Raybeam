@@ -8,6 +8,7 @@ import {
   signCreatorIdentity,
   verifyCreatorIdentity,
   MAX_PICKS,
+  xUrlForHandle,
   type SignedCreatorIdentity,
 } from './creator-identity'
 
@@ -117,5 +118,55 @@ describe('creator identity — self-signed profile blob', () => {
     )
     expect(meta.bio).toHaveLength(600)
     expect(meta.pickNotes[0]).toHaveLength(80)
+  })
+})
+
+
+// THE X LINK the owner asked for (2026-08-22), and the hole it must not reopen.
+// A self-typed URL rendered as a link is a phishing surface — the audit found
+// `https://x.com@evil.com/` reading as "x.com@evil.com" — so the creator gives a
+// HANDLE and the host is a literal in xUrlForHandle. These pin that no input can
+// steer the destination.
+describe('xUrlForHandle', () => {
+  it('builds the creator page from a plain handle', () => {
+    expect(xUrlForHandle('basketchef')).toBe('https://x.com/basketchef')
+    expect(xUrlForHandle('@basketchef')).toBe('https://x.com/basketchef')
+    expect(xUrlForHandle('  @Basket_Chef9 ')).toBe('https://x.com/Basket_Chef9')
+  })
+
+  it('refuses anything that could steer the destination', () => {
+    for (const evil of [
+      'x.com@evil.com',
+      'evil.com',
+      'a/../../evil',
+      'https://evil.com',
+      'chef?next=evil.com',
+      'chef#@evil.com',
+      'chef evil',
+      'chef:80',
+      '../evil',
+      'javascript:alert(1)',
+      'chef%2Fevil',
+      'chef\\evil',
+    ]) {
+      expect(xUrlForHandle(evil), evil).toBeNull()
+    }
+  })
+
+  it('refuses an absent, empty or over-long handle', () => {
+    expect(xUrlForHandle(null)).toBeNull()
+    expect(xUrlForHandle(undefined)).toBeNull()
+    expect(xUrlForHandle('')).toBeNull()
+    expect(xUrlForHandle('@')).toBeNull()
+    expect(xUrlForHandle('a'.repeat(16))).toBeNull()
+    expect(xUrlForHandle('a'.repeat(15))).toBe(`https://x.com/${'a'.repeat(15)}`)
+  })
+
+  it('always lands on x.com, whatever it is handed', () => {
+    const inputs = ['chef', '@chef', 'x.com@evil.com', 'https://evil.com/chef', '', null]
+    for (const i of inputs) {
+      const u = xUrlForHandle(i)
+      if (u !== null) expect(new URL(u).host).toBe('x.com')
+    }
   })
 })

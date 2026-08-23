@@ -165,6 +165,39 @@ client-rendered SPA can only ever show them the single generic card in
   *images*; deploy it with `wrangler` and route your public hostname through it
   (`SITE_ORIGIN` = your origin). See its README.
 
+## Creator X verification (`npm run build:creator-proofs`)
+
+A signed profile proves the **wallet**, never the X account. A creator can add a
+link-back — a post from their own account naming their creator address — and the
+kit checks it, then shows a verified handle with the proof one click away.
+
+**The check is keyless.** X's oEmbed needs no API key and no account, so you can
+verify without signing up for anything. It reads your on-chain profile notes, so
+Ethereum and Base need an RPC that serves `eth_getLogs` (set `ALCHEMY_KEY`; the
+free public endpoints refuse it — Robinhood Chain's own endpoint works as-is).
+
+**⚠ IT IS A DEPLOY STEP, NOT PART OF `npm run build`** — same as
+`build:tokenlist`, and for the same reason: a build must never require the
+network, or X, to be up. `npm run build` compiles whatever
+`src/generated/creator-proofs.json` already says. The badge changes only when you
+**run this and redeploy**:
+
+```
+npm run build:creator-proofs   # re-check every claim, rewrite the artifact
+npm run check:creator-proofs   # report only; exits 1 if a LIVE badge went false
+```
+
+**Verification decays, so re-run it.** Handles get sold and renamed, and proof
+posts get deleted; a badge earned in August can be a lie by October. The daily
+canary workflow runs the `--check` form for you and fails **only** on a
+definitive revocation — a badge on your live site that no longer checks out.
+When it does, run the build step above and redeploy: until you do the stale tick
+keeps serving, because the flag is compiled in.
+
+Safe in the other direction by design: an unreachable X or an unreadable chain
+**carries existing verifications forward** instead of revoking them, so an
+outage can never strip your creators' badges.
+
 ## Feature flags = your risk surface
 
 **The onboarding default is all four ON**, written into the committed

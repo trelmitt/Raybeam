@@ -26,6 +26,20 @@ describe('operatorBrandToTheme', () => {
     expect(t.void).toBe(STYLE_PRESETS.spectral.void)
   })
 
+  it('enterprise keeps its authority inks - the gradient overlay does not reach paper', () => {
+    const t = operatorBrandToTheme({
+      ...spectralBrand,
+      style: 'enterprise',
+      palette: { gradientFrom: '#111111', gradientVia: '#222222', gradientTo: '#35e0ff' },
+    })
+    // the exact regression: the house gradient's light cyan (1.6:1 on white)
+    // must never overlay the paper preset's readable ink
+    expect(t.cyan).toBe(STYLE_PRESETS.enterprise.cyan)
+    expect(t.magenta).toBe(STYLE_PRESETS.enterprise.magenta)
+    expect(t.amber).toBe(STYLE_PRESETS.enterprise.amber)
+    expect(t.violet).toBe(STYLE_PRESETS.enterprise.violet)
+  })
+
   it('overlays accent onto violet when set', () => {
     const t = operatorBrandToTheme({
       ...spectralBrand,

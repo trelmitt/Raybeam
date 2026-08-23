@@ -124,7 +124,7 @@ export function AnnounceComposer() {
               type="button"
               disabled={!text.trim() || busy !== null}
               onClick={() => write(encodeAnnounceJson({ text, level }), 'publish')}
-              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-void hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy === 'publish' ? 'Publishing…' : 'Publish'}
             </button>

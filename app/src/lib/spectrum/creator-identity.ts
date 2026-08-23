@@ -71,6 +71,13 @@ export interface CreatorIdentityMeta {
    *  wallet allowed to write kind:"post" notes AS this creator; readers chip
    *  its posts "via delegate". It can never edit the profile or thesis. */
   delegate?: Address | null
+  /** X link-back proof: the POST ID only (see x-proof.ts). Like `delegate`,
+   *  this rides OUTSIDE the signed EIP-712 struct — DOMAIN_VERSION is pinned
+   *  at '1', so adding a field would invalidate every signature ever issued.
+   *  Safe unsigned because the check binds to the SIGNED handle: the post's
+   *  author must equal it, so tampering can only REMOVE a verification, never
+   *  forge one. */
+  xProof?: string | null
 }
 
 export interface SignedCreatorIdentity {
@@ -153,6 +160,32 @@ export function buildCreatorIdentity(
     pickNotes,
     issuedAt,
   }
+}
+
+/**
+ * The creator's X page, built from the handle they signed — or null.
+ *
+ * ⚠ WHY THIS TAKES A HANDLE, NOT A URL, and builds the address itself. The
+ * signup field was labelled "X handle (shown, never linked)" deliberately: a
+ * self-typed URL rendered as a link under a "by the creator" heading is a
+ * phishing surface, and the audit found the exact shapes — `https://x.com@evil.com/`
+ * reads as "x.com@evil.com", `https://app.uniswap.org.claim.evil.com/…` reads as
+ * "app.uniswap.org.claim…" (CreatorFeed's M5 note).
+ *
+ * The owner asked (2026-08-22) that creators be able to link their X. This is
+ * that ask without reopening the hole: the creator supplies a HANDLE, never a
+ * destination, and the host is a literal here. X's own grammar is 1-15 of
+ * [A-Za-z0-9_], so anything carrying a dot, slash, @ or colon fails the shape
+ * and returns null instead of becoming a link. No input makes this point
+ * anywhere except x.com/<handle>.
+ *
+ * It says nothing about OWNERSHIP — a signed handle proves the creator typed it,
+ * not that the account is theirs — so callers must never label it "verified".
+ */
+export function xUrlForHandle(handle: string | null | undefined): string | null {
+  const h = (handle ?? '').trim().replace(/^@+/, '')
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(h)) return null
+  return `https://x.com/${h}`
 }
 
 /** True when the creator entered something worth signing. */

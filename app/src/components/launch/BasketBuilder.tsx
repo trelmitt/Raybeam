@@ -1495,7 +1495,7 @@ export function BasketBuilder({
                 <button
                   type="button"
                   onClick={() => setAssetsConfirmed(true)}
-                  className="press ml-auto rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-black hover:opacity-90"
+                  className="press ml-auto rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-void hover:opacity-90"
                 >
                   Continue → weights
                 </button>

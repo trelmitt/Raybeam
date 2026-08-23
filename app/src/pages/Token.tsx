@@ -295,7 +295,7 @@ function VersionNote({
               type="button"
               disabled={busy || !draft.trim()}
               onClick={publish}
-              className="press rounded-lg bg-cyan px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="press rounded-lg bg-cyan px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-void hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? 'Publishing…' : 'Publish'}
             </button>

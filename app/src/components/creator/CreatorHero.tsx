@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { useNavigate } from 'react-router'
 import { parseAbi, type Address } from 'viem'
-import { Bezel, SPECTRAL } from '../home/Spine'
+import { SPECTRAL } from '../home/Spine'
 import { BasketAvatar } from '../BasketAvatar'
 import { AssetLogo } from '../AssetLogo'
+import { Carousel } from '../Carousel'
 import { ChainBadge } from '../ChainBadge'
 import { CopyAddress } from '../CopyAddress'
 import { FollowButton } from '../FollowButton'
-import { Carousel } from '../Carousel'
 import { CrownWinnings } from '../CrownWinnings'
 import { useActiveChainId } from '../../lib/chain/active-chain'
 import { chainCfg } from '../../lib/chain/chains'
@@ -19,11 +19,10 @@ import { basketSignatureColor } from '../../lib/spectrum/signature'
 import { formatUsdCompact, shortAddr } from '../../lib/spectrum/format'
 import { useCopy } from '../../lib/use-copy'
 import type { HandleOwner } from '../../lib/spectrum/creator-handles'
-import type { VerifiedCreatorIdentity } from '../../lib/spectrum/creator-identity'
+import { xUrlForHandle, type VerifiedCreatorIdentity } from '../../lib/spectrum/creator-identity'
+import { xStandingFor } from '../../lib/spectrum/creator-proofs'
 import { PortfolioChart } from '../PortfolioChart'
 import type { PortfolioHistoryAsset } from '../../lib/spectrum/portfolio-history'
-import leagueArt from '../../assets/league-hero.jpg'
-import leagueArt1280 from '../../assets/league-hero.1280.jpg'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE CREATOR HEAD (owner 2026-08-06, the creator-page rework: "this page needs
@@ -37,11 +36,14 @@ import leagueArt1280 from '../../assets/league-hero.1280.jpg'
 // what they are bullish on, on the right; the facts that carry weight along the
 // foot. A reader meets the person and their thesis in one screen.
 //
-// THE BANNER IS A BACKDROP, NOT A DESTINATION. It used to hold a 64svh floor and
-// eat roughly 700px before a single fact — a thing you scroll past. Its height
-// is now whatever the identity needs, so the art is behind the argument instead
-// of in front of it. The creator's OWN signed banner takes the backdrop when
-// they published one; the house league art stands in when they have not.
+// THE BANNER, TWICE RULED ON. It once held a 64svh floor and ate roughly 700px
+// before a single fact, so 2026-08-06 demoted it to a 60%-opacity backdrop.
+// 2026-08-22 asks for "a full hero banner for the image they upload", which
+// reverses that — and keeps the reason it was made. An UPLOADED banner now gets
+// its own full-bleed band at full strength, but a bounded one (192px, 240 from
+// sm), with the identity plate climbing back up into it. Their art reads as the
+// top of their page and the facts still start inside one screen. With no upload
+// the old subtle backdrop stands: house league art does not earn a 240px stage.
 //
 // It also aligns now: the stage's column is the app shell's 1000px, so the plate
 // sits directly over the baskets below instead of floating off to one side.
@@ -72,32 +74,9 @@ function FactCell({ fact }: { fact: CreatorFact }) {
   )
 }
 
-const COLS = ['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'] as const
-
-/** The facts, or nothing at all. Written out per count so Tailwind can see the
- *  class: a strip of three cells where only one is measurable would otherwise
- *  leave two holes, which reads as missing data rather than absent data. */
-function FactStrip({ facts, chart }: { facts: CreatorFact[]; chart?: ReactNode }) {
-  const shown = facts.filter((f) => f.value !== null)
-  if (shown.length === 0 && !chart) return null
-  return (
-    <div className="mt-8 border-t border-white/10 pt-6">
-      {/* the facts LEFT, the chart that genuinely tracks them RIGHT (owner
-          2026-08-06: "we should have charts on the right hand side of this
-          data and let it genuinely track that data"). Below lg the cells keep
-          their row and the chart follows — a chart beside a 90px cell on a
-          phone is a postage stamp. */}
-      <div className={chart ? 'grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-stretch' : ''}>
-        <div className={`grid content-start gap-4 ${COLS[Math.min(shown.length, 3)]} ${chart ? 'lg:auto-rows-fr lg:grid-cols-1 lg:content-stretch' : ''}`}>
-          {shown.map((f) => (
-            <FactCell key={f.label} fact={f} />
-          ))}
-        </div>
-        {chart}
-      </div>
-    </div>
-  )
-}
+// FactStrip and its COLS table are GONE with the plate (owner 2026-08-22): the
+// facts are no longer a strip inside a card, they are cells the hero's own row
+// places by name. FactCell survives because a single fact still needs a surface.
 
 // "Bullish on" — the tokens the creator signed into their profile. Symbols are
 // resolved live from the chain (display-only); every row is just a fact card,
@@ -114,6 +93,9 @@ function Convictions({
   onEdit?: () => void
 }) {
   const [symbols, setSymbols] = useState<Record<string, string>>({})
+  const anyNote = (identityMeta?.picks ?? []).some((p) => (p.note ?? '').trim().length > 0)
+  /** The pick being read — hover or keyboard focus. */
+  const [shown, setShown] = useState<{ address: string; note?: string | null } | null>(null)
   const chainId = identityMeta?.chainId
   const picks = useMemo(() => identityMeta?.picks ?? [], [identityMeta])
 
@@ -136,7 +118,7 @@ function Convictions({
   }, [picks, chainId])
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <div className="flex items-baseline justify-between gap-3 border-b border-white/10 pb-3">
         <h2 className="font-display text-sm font-semibold uppercase tracking-[0.2em] text-ink">Bullish on</h2>
         {picks.length > 0 && (
@@ -165,30 +147,106 @@ function Convictions({
           )}
         </div>
       ) : (
-        // A rail on a phone, a stacked list beside the identity from lg up
-        // (Carousel: "anything that uses too much width we create a carousel").
-        <Carousel
-          label="Tokens this creator is bullish on"
-          gridFrom="sm"
-          gridClassName="sm:grid-cols-2 lg:grid-cols-1"
-          peek="84%"
-          className="mt-4"
-        >
-          {picks.map((p) => (
-            <div
-              key={p.address}
-              className="flex h-full items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4"
-            >
-              <AssetLogo address={p.address} symbol={symbols[p.address] ?? '?'} chainId={chainId ?? 8453} size={28} />
-              <div className="min-w-0">
-                <div className="font-display text-sm font-bold uppercase tracking-wide text-ink">
-                  {symbols[p.address] ?? shortAddr(p.address)}
+        // CIRCLES (owner 2026-08-22: "you see the assets they're bullish on as
+        // beautiful circles"). It was a rail of full-width cards, which spent a
+        // whole column on twelve rows of chrome; a conviction is a face and a
+        // symbol, so it gets one. Twelve fit in a wrapped row without a
+        // carousel, which is why the rail could go.
+        //
+        // THE NOTES ARE THE POINT AND THEY DO NOT GET HIDDEN. Each pick's line
+        // is the creator's own word on it, so hovering or focusing a circle
+        // prints it in the reserved line below the row — reserved, so nothing
+        // reflows as you move across them, and keyboard-reachable because a
+        // hover-only reveal is not a control.
+        <div className="mt-5 flex min-h-0 flex-1 flex-col">
+          {/* TWO PER ROW, as many rows as needed (owner 2026-08-22). A wrapped
+              flex row left a ragged last line and, beside a ~320px chart, four
+              faces in one line looked squeezed. Past FOUR the rows would grow
+              this cell and push the whole band down, so at that point the same
+              pairs become a slideshow instead — the shared Carousel, one column
+              of two per slide, so it is still two per row either way. */}
+          {(() => {
+            const circle = (p: { address: string; note?: string | null }) => {
+              const sym = symbols[p.address] ?? shortAddr(p.address)
+              const active = shown?.address === p.address
+              return (
+                <button
+                  key={p.address}
+                  type="button"
+                  onMouseEnter={() => setShown(p)}
+                  onFocus={() => setShown(p)}
+                  onMouseLeave={() => setShown(null)}
+                  onBlur={() => setShown(null)}
+                  aria-label={p.note ? `${sym}: ${p.note}` : sym}
+                  className="press group flex min-w-0 flex-col items-center gap-2 focus:outline-none"
+                >
+                  <span className="relative grid h-14 w-14 place-items-center">
+                    {/* the house halo, lit on the one being read */}
+                    <span
+                      aria-hidden
+                      className={`absolute -inset-0.5 rounded-full blur-[6px] transition-opacity ${active ? 'opacity-70' : 'opacity-0 group-hover:opacity-50'}`}
+                      style={{ background: SPECTRAL }}
+                    />
+                    <span
+                      className={`relative grid h-14 w-14 place-items-center overflow-hidden rounded-full ring-1 transition-all ${
+                        active ? 'ring-cyan/70' : 'ring-white/15 group-hover:ring-white/35'
+                      }`}
+                    >
+                      <AssetLogo address={p.address} symbol={sym} chainId={chainId ?? 8453} size={56} />
+                    </span>
+                  </span>
+                  <span className="max-w-full truncate font-mono text-[10px] uppercase tracking-[0.1em] text-ink-dim group-hover:text-ink">
+                    {sym}
+                  </span>
+                </button>
+              )
+            }
+            // Four or fewer: two per row, wrapped, done.
+            // one or two picks centre themselves - a lone conviction pinned
+            // to the top-left of a wide cell read as a layout accident
+            if (picks.length <= 4)
+              return (
+                <div className={`grid gap-x-4 gap-y-5 ${picks.length === 1 ? 'grid-cols-1 justify-items-center' : 'grid-cols-2 justify-items-center'}`}>
+                  {picks.map(circle)}
                 </div>
-                {p.note && <p className="mt-2 text-xs leading-relaxed text-ink-dim">{p.note}</p>}
-              </div>
-            </div>
-          ))}
-        </Carousel>
+              )
+            // More than four would grow this cell and push the whole band down,
+            // so the same pairs ride the shared Carousel instead — one column of
+            // two per slide, which is still two per row, moved sideways.
+            const pairs: (typeof picks)[] = []
+            for (let i = 0; i < picks.length; i += 2) pairs.push(picks.slice(i, i + 2))
+            return (
+              <Carousel label="Tokens this creator is bullish on" gridFrom="never" arrows dots={false} peek="46%">
+                {pairs.map((pair) => (
+                  <div key={pair[0].address} className="grid grid-rows-2 gap-5">
+                    {pair.map(circle)}
+                  </div>
+                ))}
+              </Carousel>
+            )
+          })()}
+          {/* Reserved, so the row never jumps (bottom-centre per the owner
+              2026-08-23). QoL: the line only INVITES reading when there is
+              something to read — a card whose picks carry no notes used to say
+              "hover to read why" and then answer every hover with "no note",
+              an invitation to disappointment. And the verb is pointer-aware:
+              "Hover" is a lie on a touch screen. */}
+          <p className="mx-auto mt-auto min-h-10 max-w-[52ch] pt-4 text-center text-[13px] leading-relaxed text-ink-dim">
+            {!anyNote ? (
+              ''
+            ) : shown?.note ? (
+              shown.note
+            ) : shown ? (
+              `${symbols[shown.address] ?? shortAddr(shown.address)}: no note on this one.`
+            ) : (
+              <>
+                <span className="[@media(hover:none)]:hidden">Hover</span>
+                <span className="hidden [@media(hover:none)]:inline">Tap</span>
+                {' a token to read why they back it.'}
+              </>
+            )}
+          </p>
+        </div>
       )}
     </div>
   )
@@ -267,6 +325,19 @@ export function CreatorHero({
     followerFact,
   ]
 
+  /** One fact as its own cell, or null when it is unmeasurable — the row places
+   *  cells by NAME now rather than taking the array in order, because the order
+   *  the owner asked for (chart, holders, value, bullish) is not the order the
+   *  facts are built in, and a positional read would silently swap two numbers. */
+  const factByLabel = (label: string) => {
+    const f = facts.find((x) => x.label === label)
+    return f && f.value !== null ? <FactCell fact={f} /> : null
+  }
+  /** Followers moved OUT of the row (his row names four things, and this is not
+   *  one of them) — but a public count is worth keeping, so it rides under the
+   *  identity beside the follow button it belongs to. Absent when unmeasurable. */
+  const followerLine = followerFact.value !== null ? `${followerFact.value} followers` : null
+
   // THE TRACKED VALUE (owner 2026-08-06: charts beside the facts that
   // "genuinely track that data"): the combined value's real history,
   // reconstructed the way every portfolio surface does it — each basket's
@@ -293,168 +364,277 @@ export function CreatorHero({
     historyAssets.length > 0 && profile.totalAumUsd > 0 ? (
       <div className="relative min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-4">
         <span aria-hidden className="absolute inset-x-0 top-0 h-px" style={{ background: SPECTRAL, opacity: 0.55 }} />
-        <div className="font-mono text-[10px] uppercase leading-tight tracking-[0.16em] text-ink-faint">
-          Their baskets · tracked
-        </div>
-        <div className="mt-3">
-          <PortfolioChart assets={historyAssets} totalUsd={profile.totalAumUsd} heightClass="h-40" />
-        </div>
+        {/* the "Their baskets · tracked" label is GONE (owner 2026-08-22):
+            the chart's own header already names the period and the change, and
+            a label above a labelled chart is one line of nothing. */}
+        {/* MORE HEIGHT (owner 2026-08-22: "chart area needs to use more width
+            and height"). Measured, the 247px card spent 65px on the header and
+            22px on the coverage sentence, leaving the plot 160px — 65% of a
+            card whose whole job is the curve.
+            `hideCoverage` reclaims the 22px WITHOUT growing the row, and it is
+            what every other mount already passes: the owner asked for that
+            sentence gone on 2026-08-06 ("remove that text") and its caveat
+            moved into the ⓘ beside the figures, which this mount renders. The
+            creator page was the one place still printing it.
+            h-52 buys the rest. The row grows ~26px, which is affordable here
+            because this cell is the tallest and the other two are stretched to
+            it — the numbers column stays near the 2026-08-22 pairing height,
+            well under the "too much height per card" it was cut from. */}
+        <PortfolioChart assets={historyAssets} totalUsd={profile.totalAumUsd} heightClass="h-52" hideCoverage />
       </div>
     ) : undefined
 
   const banner = identityMeta?.bannerUrl ?? null
+  // Their X page, built from the handle they SIGNED — never from a URL they
+  // typed (xUrlForHandle's header has the phishing shapes that rule out).
+  const xUrl = xUrlForHandle(identityMeta?.handle ?? null)
+  // Whether this build could CHECK that the handle is theirs (creator-proofs.ts).
+  // Keyed on the chain the profile RESOLVED on, not the chain being browsed:
+  // the proof was read from that chain's registry, so any other key would
+  // silently never match and quietly downgrade a real verification.
+  const xStanding = xStandingFor(identityMeta?.chainId ?? 0, profile.address, identityMeta?.handle ?? null)
 
   return (
     <section className="relative left-1/2 -mt-8 w-screen -translate-x-1/2 overflow-hidden">
-      {/* THE BACKDROP. Edges masked to fully transparent so the site's animated
-          light bands ride over it, bottom composited into the page. */}
+      {/* ── THE UPLOADED BANNER IS A REAL HERO NOW (owner 2026-08-22: "full hero
+          banner for the image they upload") ──────────────────────────────────
+          This reverses the 2026-08-06 call directly above, and keeps the reason
+          it was made. That call demoted the banner to a 60%-opacity backdrop
+          because a full hero held a 64svh floor and ate ~700px before a single
+          fact — a thing you scroll past. So the image gets its own full-bleed
+          band at full strength, but a BOUNDED one (192px, 240 from sm), and the
+          identity plate climbs back up into it. The creator's art reads as the
+          top of their page; the facts still start inside one screen.
+          Only for an image they actually uploaded: house art does not earn a
+          240px stage, so with no banner the old subtle backdrop stands. */}
       {banner ? (
-        <img src={banner} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-60" style={{ WebkitMaskImage: MASK, WebkitMaskComposite: 'source-in', maskImage: MASK, maskComposite: 'intersect' }} />
-      ) : (
-        <img
-          src={leagueArt}
-          srcSet={`${leagueArt1280} 1280w, ${leagueArt} 3840w`}
-          sizes="100vw"
-          alt=""
-          aria-hidden
-          /* Centred on the art's own subject, not its top-left corner: the
-             stage is now a band rather than a 64svh wall, and left-top cropped
-             it to empty sky. */
-          className="league-hero-in absolute inset-0 h-full w-full object-cover object-[38%_45%]"
-          style={{ WebkitMaskImage: MASK, WebkitMaskComposite: 'source-in', maskImage: MASK, maskComposite: 'intersect' }}
-        />
-      )}
-      <span aria-hidden className="absolute inset-0 bg-void/25" />
+        // IN FLOW, not absolute: the band owns real height, and the identity
+        // plate below climbs back into it. An absolute image here would have sat
+        // behind the plate again, which is the treatment this replaces.
+        // TALLER, DOWN TO THE LOGO'S OWN FOOT (owner 2026-08-23: "the banner can
+        // take up a bit more height to the bottom of their logo as it tapers"):
+        // the band now ends where the avatar ends, so the photo sits wholly ON
+        // their art and the foot fade tapers behind its lower half instead of
+        // stopping at its shoulders.
+        <div className="relative h-64 w-full sm:h-80">
+          <img src={banner} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+          {/* sides fade for the site's light bands, foot into the page so the
+              plate composites instead of butting against a hard edge */}
+          <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(90deg, var(--color-void) 0%, transparent 12%, transparent 88%, var(--color-void) 100%)' }} />
+          <span aria-hidden className="absolute inset-x-0 bottom-0 h-52" style={{ background: 'linear-gradient(180deg, transparent, var(--color-void))' }} />
+        </div>
+      ) : null}
+      {/* THE HOUSE-ART BACKDROP IS GONE (owner 2026-08-23: "the old creator bg
+          hero should be removed now that we allow for creator banners"). With
+          no uploaded banner the page simply starts on its own ground, both
+          planes - house league art on a page about a PERSON read as decoration
+          standing in for an identity they had not supplied, and the upload is
+          the honest way to earn a stage. */}
 
-      {/* The app shell's own 1000px column and gutters, so the plate lines up
-          with the baskets under it instead of floating in the right half.
-          The foot is deliberately shorter than the head: the page's own
-          between-region rhythm picks up right underneath, and the two used to
-          add to ~112px of nothing between the identity and the evidence. */}
-      <div className="relative z-10 mx-auto w-full max-w-[1000px] px-4 pb-8 pt-10 sm:px-6 sm:pt-14">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            to="/"
-            className="press inline-flex h-9 items-center gap-2 rounded-full border border-white/12 bg-black/30 px-4 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-dim backdrop-blur hover:border-white/30 hover:text-ink"
+      {/* ── NOT A CARD IN THE MIDDLE OF A PAGE (owner 2026-08-22: "I want the
+          creator pages not to feel like it's boxed into a center card") ──────
+          The identity used to sit inside a Bezel plate with a two-column grid,
+          which is exactly what read as boxed: a bordered panel, its own
+          backdrop, and a hard edge around the person. The plate is gone. The
+          page is now a centred vertical flow that runs to a wider column than
+          the app shell's 1000px, so the content breathes instead of being held
+          in a frame.
+
+          The order is his: photo overlapping the banner, name centred, thesis
+          under it, then chart · holders · total value · bullish in ONE row, then
+          the baskets (Creator.tsx widens those further), then the swap card. */}
+      {/* THE BACK LINK RIDES THE BAND when there is one. In flow it sat BETWEEN
+          the banner and the photo, which is what stopped the photo reaching the
+          band at all — the avatar measured 44px below the edge it was supposed
+          to overlap. Absolute over the band with a banner, in flow without one
+          (no band means nothing to float over). */}
+      {banner && (
+        <div className="absolute inset-x-0 top-6 z-20 mx-auto w-full max-w-[1240px] px-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <BackControl />
+            {ownerBar}
+          </div>
+        </div>
+      )}
+      <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6">
+        {!banner && (
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-6">
+            <BackControl />
+            {ownerBar}
+          </div>
+        )}
+
+        {/* ── who they are, centred ──────────────────────────────────────── */}
+        {/* -mt-[10.5rem] (owner 2026-08-23, second word: "the banner can go
+            down to the start of the person's name"): 168px = the avatar's
+            128 + its mt-5 + the Creator eyebrow + the name's mt-2, so the
+            band's foot lands exactly where the name begins - the photo AND the
+            eyebrow ride the art, the name starts on the page. */}
+        <div className={`flex flex-col items-center text-center ${banner ? '-mt-[10.5rem]' : 'pt-6'}`}>
+          <div className="relative">
+            <div
+              aria-hidden
+              className="absolute -inset-1.5 rounded-full opacity-60 blur-lg"
+              style={{ background: `linear-gradient(135deg, ${accent}, var(--color-cyan))` }}
+            />
+            {/* SLIGHTLY OVERLAPPING THE BANNER, which is what a profile photo
+                does. The ring is the PAGE colour rather than a white hairline:
+                it cuts the photo out of the band above it, so the overlap reads
+                as deliberate instead of as two things touching. */}
+            <div className="relative overflow-hidden rounded-full ring-4 ring-void">
+              <BasketAvatar address={profile.address} symbol={avatarSymbol} imageUrl={avatarUrl} size={120} />
+            </div>
+          </div>
+
+          <div className="mt-5 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">Creator</div>
+          {/* Fluid, and centred: a handle is arbitrary text, and at a fixed size
+              a long one broke mid-word. */}
+          <h1
+            className="mt-2 break-words font-display font-bold leading-[0.95] tracking-tight text-ink"
+            style={{ fontSize: 'clamp(1.75rem, 1rem + 3.4vw, 3rem)' }}
           >
-            ← All baskets
-          </Link>
-          {ownerBar}
+            {identity.label}
+          </h1>
+
+          {/* One 36px row of controls, centred under the name. */}
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {handle ? (
+              <button
+                type="button"
+                onClick={() => void copyName(`${window.location.origin}/creator/${handle.display}`)}
+                title={`Copy ${window.location.host}/creator/${handle.display}`}
+                aria-label="Copy this creator page link"
+                className={`press inline-flex h-9 items-center rounded-full border px-3 font-mono text-[11px] tracking-[0.04em] ${
+                  nameCopied
+                    ? 'border-cyan/60 bg-cyan/10 text-cyan'
+                    : 'border-cyan/35 bg-cyan/[0.06] text-ink hover:border-cyan/70'
+                }`}
+              >
+                <span className="text-ink-faint">/creator/</span>
+                <span className="font-semibold">{handle.display}</span>
+                <span className="ml-2 text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+                  {nameCopied ? 'copied ✓' : 'copy'}
+                </span>
+              </button>
+            ) : null}
+            <FollowButton deployer={profile.address} className="h-9 px-3" />
+            {/* THEIR X — safe by construction: the handle they signed, host as
+                a literal, so no typed value can steer where this goes.
+                ── AND NOW, WHETHER IT IS THEIRS ──────────────────────────────
+                A signed profile proves the WALLET, never the account, which is
+                why this chip spent its life saying nothing about ownership.
+                `xStandingFor` upgrades it to "verified" ONLY when this build
+                checked a link-back post: from that handle, naming this
+                address. The flag is a build artifact, so nothing the creator
+                writes can grant it to themselves, and a handle changed after
+                the check drops back to a plain claim rather than carrying the
+                tick onto a handle nobody looked at. */}
+            {xUrl && (
+              <a
+                href={xUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                title={
+                  xStanding.kind === 'verified'
+                    ? `@${xStanding.handle} posted this creator address from that account (checked ${xStanding.checkedAt}). Proves the account, not an endorsement.`
+                    : `${identityMeta?.handle} on X (creator-provided, unverified)`
+                }
+                className={`press inline-flex h-9 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] tracking-[0.04em] ${
+                  xStanding.kind === 'verified'
+                    ? 'border-teal/40 bg-teal/[0.08] text-teal hover:border-teal/70'
+                    : 'border-white/15 bg-white/[0.04] text-ink-dim hover:border-white/35 hover:text-ink'
+                }`}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden className="h-3 w-3 fill-current">
+                  <path d="M18.9 2H22l-7 8 7.6 12H16l-5-7.6L4.9 22H2l7.4-8.4L2 2h6.7l4.7 7.1L18.9 2Z" />
+                </svg>
+                @{(identityMeta?.handle ?? '').replace(/^@+/, '')}
+                {xStanding.kind === 'verified' && (
+                  <svg viewBox="0 0 24 24" aria-hidden className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
+              </a>
+            )}
+            {/* The proof itself is one click away, because a badge a reader
+                cannot check is just a nicer-looking claim. */}
+            {xStanding.proofUrl && (
+              <a
+                href={xStanding.proofUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                title="The post this account made naming this creator address"
+                className="press inline-flex h-9 items-center rounded-full border border-white/12 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint hover:border-white/30 hover:text-ink"
+              >
+                proof
+              </a>
+            )}
+            <CopyAddress
+              address={profile.address}
+              what="creator address"
+              className="[&>button]:h-9 [&>button]:px-3 [&>button]:text-[11px]"
+            />
+            {identityMeta && (
+              <span className="inline-flex h-9 items-center rounded-full border border-teal/40 bg-teal/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-teal">
+                Signed profile
+              </span>
+            )}
+            {profile.chains.map((c) => (
+              <ChainBadge key={c} chainId={c} size="md" className="h-9 px-3" />
+            ))}
+          </div>
+
+          {/* THE THESIS, DIRECTLY UNDER THE NAME. Centred with the identity, and
+              measure-capped: centred text past ~60ch stops being readable. */}
+          {bio ? (
+            <div className="mt-8">
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">Their thesis</div>
+              <p className="mx-auto mt-3 max-w-[60ch] text-[17px] leading-relaxed text-ink sm:text-[19px]">{bio}</p>
+            </div>
+          ) : (
+            <p className="mx-auto mt-7 max-w-[60ch] text-sm leading-relaxed text-ink-faint">
+              {isMe
+                ? 'You have not published a profile yet. Sign one to add your name, a thesis and the tokens you back, on every Spectrum site at once.'
+                : 'No profile published yet. Until then this page is what the address itself proves: the baskets it published, and how they have gone.'}
+            </p>
+          )}
+          {followerLine && (
+            <div className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">{followerLine}</div>
+          )}
         </div>
 
-        <Bezel className="mt-6" glow={accent} panel="bg-void/85 backdrop-blur-xl">
-          {/* 16px of plate padding on a phone is deliberate: it is exactly the
-              Carousel's own bleed, so the conviction rail runs to the plate's
-              edge instead of stopping in a channel. */}
-          <div className="p-4 sm:p-8">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12">
-              {/* ── who they are ─────────────────────────────────────────── */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-4">
-                  <div className="relative shrink-0">
-                    <div
-                      aria-hidden
-                      className="absolute -inset-1 rounded-3xl opacity-60 blur-md"
-                      style={{ background: `linear-gradient(135deg, ${accent}, var(--color-cyan))` }}
-                    />
-                    <div className="relative overflow-hidden rounded-2xl ring-1 ring-white/20">
-                      <BasketAvatar address={profile.address} symbol={avatarSymbol} imageUrl={avatarUrl} size={80} />
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">Creator</div>
-                    {/* FLUID, because a handle is arbitrary text next to a fixed
-                        avatar in a half-width column: at a fixed 48px
-                        "@basedresearch" ran out of line and broke MID-WORD,
-                        which is worse than any size. The clamp keeps it whole
-                        down to 390px; `break-words` stays as the last resort for
-                        a handle no size could fit. */}
-                    <h1
-                      className="mt-2 break-words font-display font-bold leading-[0.95] tracking-tight text-ink"
-                      style={{ fontSize: 'clamp(1.5rem, 0.9rem + 3.2vw, 2.5rem)' }}
-                    >
-                      {identity.label}
-                    </h1>
-                  </div>
-                </div>
-
-                {/* One 36px row: every chip is a tap target on a phone, and they
-                    all stand the same height so the row reads as one control
-                    strip rather than a pile of odd sizes. */}
-                <div className="mt-6 flex flex-wrap items-center gap-2">
-                  {/* The h-9 on a shared chip is deliberate and local: these are
-                      the page's own controls and a 24px pill is not a thumb
-                      target. Nothing about the chips' chrome changes anywhere
-                      else. */}
-                  {/* the claimed name FIRST — it outranks the address as the
-                      thing a visitor takes away; one tap copies the full URL */}
-                  {handle ? (
-                    <button
-                      type="button"
-                      onClick={() => void copyName(`${window.location.origin}/creator/${handle.display}`)}
-                      title={`Copy ${window.location.host}/creator/${handle.display}`}
-                      aria-label="Copy this creator page link"
-                      className={`press inline-flex h-9 items-center rounded-full border px-3 font-mono text-[11px] tracking-[0.04em] ${
-                        nameCopied
-                          ? 'border-cyan/60 bg-cyan/10 text-cyan'
-                          : 'border-cyan/35 bg-cyan/[0.06] text-ink hover:border-cyan/70'
-                      }`}
-                    >
-                      <span className="text-ink-faint">/creator/</span>
-                      <span className="font-semibold">{handle.display}</span>
-                      <span className="ml-2 text-[10px] uppercase tracking-[0.14em] text-ink-faint">
-                        {nameCopied ? 'copied ✓' : 'copy'}
-                      </span>
-                    </button>
-                  ) : null}
-                  {/* FOLLOW TAKES THE COPY-LINK'S PLACE (the owner 2026-08-09:
-                      "remove the copy page link and put the follow button in
-                      its place"). Copying a page link is what the browser's own
-                      share and URL bar already do; following is the one action
-                      here that does something this app cannot do for you — and
-                      it was last in the row, after the chain badges, which is
-                      the least likely place for the row's only real verb. */}
-                  <FollowButton deployer={profile.address} className="h-9 px-3" />
-                  <CopyAddress
-                    address={profile.address}
-                    what="creator address"
-                    className="[&>button]:h-9 [&>button]:px-3 [&>button]:text-[11px]"
-                  />
-                  {identityMeta && (
-                    <span className="inline-flex h-9 items-center rounded-full border border-teal/40 bg-teal/10 px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-teal">
-                      Signed profile
-                    </span>
-                  )}
-                  {profile.chains.map((c) => (
-                    <ChainBadge key={c} chainId={c} size="md" className="h-9 px-3" />
-                  ))}
-                </div>
-
-                {bio ? (
-                  <p className="mt-6 max-w-[62ch] text-[15px] leading-relaxed text-ink-dim">{bio}</p>
-                ) : (
-                  <p className="mt-6 max-w-[62ch] text-sm leading-relaxed text-ink-faint">
-                    {isMe
-                      ? 'You have not published a profile yet. Sign one to add your name, a short bio and the tokens you back, on every Spectrum site at once.'
-                      : 'No profile published yet. Until then this page is what the address itself proves: the baskets it published, and how they have gone.'}
-                  </p>
-                )}
-              </div>
-
-              {/* ── what they believe ────────────────────────────────────── */}
-              <div className="min-w-0 lg:border-l lg:border-white/10 lg:pl-12">
-                <Convictions identityMeta={identityMeta} isMe={isMe} onEdit={onEdit} />
-              </div>
-            </div>
-
-            {/* ── and the facts that carry weight ──────────────────────────
-                Value, holders and followers — never a count of the inventory
-                that is listed in full two sections down. */}
-            <FactStrip facts={facts} chart={valueChart} />
+        {/* ── HIS ROW: chart · holders · total value · bullish ─────────────
+            One band across the page rather than a fact strip inside a plate.
+            The chart takes the widest cell because it is the only one with a
+            shape to read; the two numbers are narrow; the circles need room for
+            four faces and their reserved note line. Each cell keeps its own
+            surface, which is what stops a borderless page becoming a soup —
+            the boxes that went were the ones AROUND the content, not the ones
+            holding a single fact. */}
+        {/* MORE WIDTH, taken from the column that had the least to say: the two
+            stacked figures are a label and a number each, so 0.9fr → 0.75fr
+            costs them nothing legible and hands the curve ~42px. Convictions
+            keeps its 1.5fr because it is width-bound (four faces on a row),
+            unlike the numbers, which are not. */}
+        <div className="mt-12 grid gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,0.75fr)_minmax(0,1.5fr)] lg:items-stretch">
+          {valueChart ?? <div className="hidden lg:block" />}
+          {/* THE TWO NUMBERS SHARE ONE COLUMN, stacked (owner 2026-08-22: "these
+              two have too much height per card, make em one top and one bottom
+              in same column"). Beside a ~320px chart, two separate full-height
+              cells each carried a single figure and 200px of air. One column of
+              two keeps the row's height honest and reads as a pair, which is
+              what they are: what it is worth, and who holds it. */}
+          <div className="grid min-w-0 grid-rows-2 gap-4">
+            {factByLabel('Total value') ?? <div />}
+            {factByLabel('Holders') ?? <div />}
           </div>
-        </Bezel>
+          <div className="relative min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+            <span aria-hidden className="absolute inset-x-0 top-0 h-px" style={{ background: SPECTRAL, opacity: 0.55 }} />
+            <Convictions identityMeta={identityMeta} isMe={isMe} onEdit={onEdit} />
+          </div>
+        </div>
 
-        {/* Their UNWITHDRAWN crown balance (not cumulative earnings — it zeroes
+      {/* Their UNWITHDRAWN crown balance (not cumulative earnings — it zeroes
             on withdraw and self-hides at 0), and the claim button when the
             viewer is them. */}
         <CrownWinnings creator={profile.address} className="mt-4" />
@@ -463,6 +643,28 @@ export function CreatorHero({
   )
 }
 
-// Sides fade to transparent for the light bands, foot dissolves into the page.
-const MASK =
-  'linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.45) 6%, black 13%, black 86%, rgba(0,0,0,0.4) 94%, transparent 100%), linear-gradient(180deg, black 0%, black 78%, transparent 100%)'
+/* ONE back control, history-aware (owner 2026-08-23: "it should go back to
+   whatever page you were last on, and defaults to creators if direct"). The
+   router stamps history.state.idx on every in-app navigation, so idx > 0 means
+   there IS an in-app page behind us and browser-back lands inside the site;
+   idx 0 or absent means this tab arrived here directly, and /creators is the
+   honest default. Never a bare navigate(-1): on a direct visit that would walk
+   the visitor out of the site entirely. */
+function BackControl() {
+  const navigate = useNavigate()
+  const goBack = () => {
+    const idx = typeof window !== 'undefined' ? ((window.history.state as { idx?: number } | null)?.idx ?? 0) : 0
+    if (idx > 0) navigate(-1)
+    else void navigate('/creators')
+  }
+  return (
+    <button
+      type="button"
+      onClick={goBack}
+      className="press inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 font-mono text-[10px] uppercase tracking-[0.2em] text-ink backdrop-blur hover:border-white/40"
+    >
+      ← Back
+    </button>
+  )
+}
+

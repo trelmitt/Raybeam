@@ -71,7 +71,7 @@ export function LeagueBanner() {
               <div className="font-num text-2xl font-semibold tabular-nums text-teal">{beat}</div>
             </div>
           )}
-          <span className="rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-black transition-transform group-hover:scale-[1.03]">
+          <span className="rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-void transition-transform group-hover:scale-[1.03]">
             Join now →
           </span>
         </div>

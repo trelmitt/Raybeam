@@ -1,8 +1,11 @@
 {
-  "version": "2026.08.21d",
-  "note": "Four chrome fixes and one boot fix. The top menu no longer runs underneath the design toggle and the chain pill: it measures the room it actually has, steps entries into More when it runs short, and centres between the chrome rather than on the page when centring is what collides. Because the menu is absolutely positioned, that overlap was also swallowing the covered control's clicks. The banner carousel's active dot no longer paints a white box on the light plane. Light is now the plane a visitor lands on, the toggle still reaching the operator's own brand style, and an operator flips DEFAULT_MODE in app/src/theme/design-mode.ts to have their own style greet visitors instead. The chat opens a fresh thread on each new visit while still surviving a reload. And a Setup-studio draft held in browser storage can no longer white-screen the site.",
+  "version": "2026.08.23",
+  "note": "The creator release. Creator pages are now a full product: a published on-chain profile (name, thesis, banner, avatar, bullish picks) dresses the creator page, the /creators rail and the leaderboard from one identity; creators can prove their X account with a keyless link-back post that the build checks and a daily workflow re-checks, so the verified tick appears and decays honestly; and the multichain launch now asks the wallet to switch networks itself instead of waiting. Light mode paints from the first frame, the light plane folds the brand gradient into readable authority inks, and a batch of chart, mobile and editor refinements ride along. Two sacred systems carry cosmetic-to-small diffs (launch: the one-asset ruling reaching the composer; swap: a text token on solid fills) - see the changelog.",
   "impact": "config",
-  "sacred": [],
+  "sacred": [
+    "launch",
+    "swap"
+  ],
   "yanked": [],
   "updateManifestUrl": "https://raw.githubusercontent.com/Irora-dev/Spectrum/main/version.json"
 }

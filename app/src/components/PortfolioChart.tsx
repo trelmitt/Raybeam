@@ -11,6 +11,7 @@ import { XAxis as DXAxis } from './dither-kit/x-axis'
 import { YAxis as DYAxis } from './dither-kit/y-axis'
 import { Tooltip as DTooltip } from './dither-kit/tooltip'
 import { useChartPart } from './dither-kit/chart-context'
+import { buildYScale } from './dither-kit/scales'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The hero's value chart (owner 10:32: "a beautiful chart on the hero … using
@@ -298,6 +299,38 @@ export function PortfolioChart({
 
   const has = rows.length >= 2
 
+  // ── THE Y GUTTER IS MEASURED, NOT GUESSED (owner 2026-08-22: "chart area
+  //    needs to use more width and height") ────────────────────────────────
+  // It was a flat 56px, sized for a label most portfolios never draw. Measured
+  // on the creator page: the widest tick renders "$2.7M" at 30px (font-mono
+  // 10px is fixed-advance at exactly 6px/char, confirmed against the 6-char
+  // "14 Aug" at 36px) and YAxis sets its labels 8px off the plot — so 38px was
+  // doing the work of 56 and the curve gave up 18px for nothing.
+  //
+  // These are the EXACT labels the axis will draw, not an estimate of them:
+  // buildYScale is the same function the chart builds its scale with and
+  // ticks() reads the domain only, so the count and the strings match what
+  // renders. That is what makes it safe to trim a money axis — an underestimate
+  // here would clip a dollar figure.
+  const privacy = moneyPrivacyOn()
+  const yGutter = useMemo(() => {
+    if (bare) return 2
+    const vals = rows.map((r) => r.value).filter((v) => Number.isFinite(v))
+    if (vals.length === 0) return 56
+    const widest = Math.max(
+      0,
+      ...buildYScale(Math.min(...vals), Math.max(...vals), 100, 'data')
+        .ticks(4)
+        .map((t) => fmtUsdTick(t).length),
+    )
+    // privacy blanks every tick, so the gutter collapses to the tick margin.
+    // The +6 is one character of tolerance, not rounding: at +2 the measured
+    // "$2.7M" cleared the gutter by 2px, and a clearance that small is not a
+    // clearance — it survives only while the mono webfont loads. A fallback
+    // face with wider advance would clip a dollar figure off a money chart.
+    return widest === 0 ? 8 : widest * 6 + 8 + 6
+  }, [rows, bare, privacy])
+
   useEffect(() => {
     if (!onReadout) return
     // no readout until the first settled reveal — a partial curve's numbers
@@ -313,40 +346,42 @@ export function PortfolioChart({
       {/* the readout row sits UP with the total; the plot gets its own air
           below (owner 11:26: "moved up a bit so there's a bit more padding
           between it and the chart area") */}
+      {/* ── SIMPLIFIED (owner 2026-08-22: "simplify and better lay out this
+          data") ────────────────────────────────────────────────────────────
+          This row was six inline chips at one baseline — "Progress ⓘ", "started
+          with", the start value, the dollar move, the percent move, "past 7D" —
+          so the figure a reader actually wants was the fifth thing of equal
+          weight in a sentence they had to parse.
+          It is two lines now: the MOVE, large and coloured, with its dollar
+          amount beside it; then one caption naming the window and where it
+          started, with the caveat riding the InfoDot where the caveat belongs.
+          Every fact survives, including the honesty note. The word "Progress"
+          does not: it labelled nothing that the caption does not now say. */}
       {!bare && (
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {/* "Progress ⓘ" used to lead this row. When the host wires onReadout
-              the numbers it introduced move up to the hero's right block, and
-              the word was left standing over nothing — the owner 2026-08-06 12:53,
-              "that's just pointless". It renders only where it still labels
-              something: the standalone readout below. The caveat rides with
-              the numbers, so it goes where they go. */}
-          {ready && has && change != null && !onReadout && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint">
-              Progress
-              <InfoDot>
-                &ldquo;Started with&rdquo; is what today&rsquo;s mix was worth at the window&rsquo;s
-                open, from real per-asset price history — the move is how it travelled to now.
-                Money added or removed inside the window isn&rsquo;t netted out, and unreadable
-                assets are excluded, never guessed.
-              </InfoDot>
-            </span>
-          )}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
           {ready && has && change != null && !onReadout && (
             <>
-              {/* his sentence, as a readout (12:02) — lifted to the hero's
-                  right block when the host wires onReadout (13:57) */}
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">started with</span>
-              <span className="font-num text-sm font-semibold tabular-nums text-ink">{formatUsdCompact(startUsd)}</span>
-              <span className="font-num text-sm font-semibold tabular-nums" style={{ color: accent }}>
-                {deltaUsd >= 0 ? '+' : '−'}
-                {formatUsdCompact(Math.abs(deltaUsd))}
-              </span>
-              <span className="font-num text-sm font-semibold tabular-nums" style={{ color: accent }}>
-                {formatPct(change)}
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">past {range}</span>
+              <div className="flex flex-wrap items-baseline gap-x-2.5">
+                <span className="font-num text-xl font-semibold leading-none tabular-nums sm:text-2xl" style={{ color: accent }}>
+                  {formatPct(change)}
+                </span>
+                <span className="font-num text-sm font-semibold tabular-nums" style={{ color: accent }}>
+                  {deltaUsd >= 0 ? '+' : '−'}
+                  {formatUsdCompact(Math.abs(deltaUsd))}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+                <span>
+                  past {range} · from {formatUsdCompact(startUsd)}
+                </span>
+                <InfoDot>
+                  &ldquo;From&rdquo; is what today&rsquo;s mix was worth at the window&rsquo;s open, from real
+                  per-asset price history — the move is how it travelled to now. Money added or removed
+                  inside the window isn&rsquo;t netted out, and unreadable assets are excluded, never
+                  guessed.
+                </InfoDot>
+              </div>
             </>
           )}
           {isLoading && ready && (
@@ -413,7 +448,7 @@ export function PortfolioChart({
             <AreaChart
               data={rows}
               yDomain="data"
-              margins={bare ? { top: 6, right: 2, bottom: 6, left: 2 } : { top: 6, right: 2, bottom: 22, left: 56 }}
+              margins={bare ? { top: 6, right: 2, bottom: 6, left: 2 } : { top: 6, right: 2, bottom: 22, left: yGutter }}
               config={{ value: { label: 'Portfolio', color: accent, palette } }}
               bloom="low"
               className="h-full w-full"

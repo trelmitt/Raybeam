@@ -39,6 +39,20 @@ jobs:
       - name: Sacred smoke (live, read-only — launch simulation + swap surfaces)
         working-directory: app
         run: npm run smoke:sacred
+      # X VERIFICATION DECAYS, which is why it lives on the daily canary and
+      # not only at build time: handles get sold and renamed, proof posts get
+      # deleted, and a badge earned in August can be a lie by October.
+      #
+      # This step fails ONLY on a definitive revocation — a badge on the live
+      # site that no longer checks out — which is worth waking someone for,
+      # because the flag is baked into the build and only drops on a rebuild.
+      # X being unreachable, or a NEW verification waiting to be picked up,
+      # both exit clean: the script carries prior verifications forward rather
+      # than reading an outage as a mass revocation, so this cannot cry wolf
+      # about X's uptime. That is why it is NOT continue-on-error.
+      - name: Re-check creator X proofs (keyless, no credential)
+        working-directory: app
+        run: npm run check:creator-proofs
       - name: Open/refresh the canary issue on failure
         if: failure()
         uses: actions/github-script@v7
@@ -51,7 +65,11 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             const body = `The daily canary failed on ${new Date().toISOString().slice(0, 10)}: ${runUrl}\n\n` +
               'This usually means live chain-side state moved (RPC, contracts, routing API) — ' +
-              'not necessarily a kit bug. Deployed sites keep serving; investigate before updating anything.'
+              'not necessarily a kit bug. Deployed sites keep serving; investigate before updating anything.\n\n' +
+              'If the failing step is the creator X proof re-check, it is the one case that needs an ' +
+              'ACTION rather than an investigation: a verified badge on the live site no longer checks out ' +
+              '(handle renamed or sold, proof post deleted). The flag is baked into the build, so it only ' +
+              'drops once you rebuild and redeploy. The run log names the creators.'
             if (open.length) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo,

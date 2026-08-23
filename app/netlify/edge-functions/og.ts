@@ -71,9 +71,23 @@ export default async (request: Request, context: EdgeContext): Promise<Response>
       }
     }
   } else {
-    const creator = url.pathname.match(/^\/creator\/(0x[0-9a-fA-F]{40})$/)
-    if (creator) meta = creatorMeta(creator[1], url.origin)
-    else if (url.pathname === '/refer') meta = referMeta(url.origin)
+    // BOTH FORMS OF A CREATOR URL. This used to match the 40-hex address only,
+    // which meant `/creator/<claimed-name>` — the exact link the claim ceremony
+    // gives a new creator to post — fell through to the generic site card. The
+    // handle grammar is the registry's own (3-30 chars, lowercase alphanumeric
+    // with inner - or _), kept deliberately narrow so an arbitrary path cannot
+    // mint a creator-shaped preview.
+    const creator = url.pathname.match(/^\/creator\/(0x[0-9a-fA-F]{40}|[a-z0-9][a-z0-9_-]{1,28}[a-z0-9])$/i)
+    if (creator) {
+      // Same cheap HEAD as a basket: a card if the last build rendered one,
+      // otherwise the branded generic. Any failure means "no".
+      let hasCard = false
+      try {
+        const probe = await fetch(`${url.origin}/og/creator/${creator[1].toLowerCase()}.png`, { method: 'HEAD' })
+        hasCard = probe.ok
+      } catch { /* no card — the generic one stands in */ }
+      meta = creatorMeta(creator[1], url.origin, hasCard)
+    } else if (url.pathname === '/refer') meta = referMeta(url.origin)
   }
 
   // Unknown basket / unmatched → serve the origin untouched (generic site card).

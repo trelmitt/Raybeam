@@ -1,8 +1,11 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { useAccount } from 'wagmi'
-import { useAllBaskets, useCreatorMeta } from '../lib/spectrum/hooks'
+import { useAllBaskets, useCreatorIdentity, useCreatorMeta } from '../lib/spectrum/hooks'
 import { useHandleForAddress } from '../lib/spectrum/use-handles'
+import { creatorPath } from '../lib/spectrum/handle-registry'
+import { xUrlForHandle, type VerifiedCreatorIdentity } from '../lib/spectrum/creator-identity'
+import { xStandingFor } from '../lib/spectrum/creator-proofs'
 import { buildCreatorLeaderboard, perfMeasurable, perfToDate, type CreatorEntry } from '../lib/spectrum/leaderboard'
 import type { BasketSummary } from '../lib/spectrum/basket-data'
 import { formatUsdCompact } from '../lib/spectrum/format'
@@ -89,27 +92,49 @@ function RankChip({ rank }: { rank: number }) {
 
 /** The identity column: avatar, name, thesis (from the top basket's signed
  *  metadata), the numbers, a link to the full creator page. */
-function CreatorIdentity({ entry, rank }: { entry: CreatorEntry; rank: number }) {
-  // the top basket carries the identity + accent + thesis (the leaderboard's
-  // own convention); its signed metadata is where the tagline/thesis live
+function CreatorIdentity({
+  entry,
+  rank,
+  identity,
+  overlap = false,
+}: {
+  entry: CreatorEntry
+  rank: number
+  /** The creator's PUBLISHED profile, resolved by the row (null = none yet). */
+  identity: VerifiedCreatorIdentity | null
+  /** True when the row's banner band renders above — the avatar climbs into it. */
+  overlap?: boolean
+}) {
+  // the top basket carries the fallback identity (the leaderboard's original
+  // convention); the PUBLISHED PROFILE outranks it wherever it speaks (owner
+  // 2026-08-23: the leaderboard should show the creator profile details)
   const top = entry.topBasket
   const { data: meta } = useCreatorMeta(top.address, top.chainId)
   const { lookup } = useHandleForAddress(entry.address)
   const claimedName = lookup.status === 'found' ? lookup.owner.display : null
-  const label = creatorLabel(entry.address, meta?.handle ?? null, claimedName ?? meta?.name ?? null)
+  const label = creatorLabel(entry.address, meta?.handle ?? null, identity?.name ?? claimedName ?? meta?.name ?? null)
   const sig = basketSignatureColor(top.address, top.top[0])
-  const thesisLine = (meta?.tagline || meta?.thesis || '').trim()
+  const thesisLine = (identity?.bio || meta?.tagline || meta?.thesis || '').trim()
+  // their X, exactly the creator page's rules: the signed handle builds the
+  // destination, and the tick is the BUILD's word, never the creator's
+  const xUrl = xUrlForHandle(identity?.handle ?? null)
+  const xStanding = identity ? xStandingFor(identity.chainId, entry.address, identity.handle) : null
   const best = entry.best24hPct
 
   const created = valueCreated(entry)
 
   return (
     <div className="flex flex-col gap-4 lg:w-[320px] lg:shrink-0">
-      <div className="flex items-center gap-3">
+      <div className={`flex items-center gap-3 ${overlap ? 'relative z-10 -mt-12' : ''}`}>
         <RankChip rank={rank} />
-        <BasketAvatar address={entry.address} symbol={label} imageUrl={meta?.avatarUrl || undefined} size={52} />
+        {/* the white ring cuts the photo out of the band above it, the creator
+            page's own overlap grammar at row scale (this page is the fixed
+            white plane, so the ring colour is honest) */}
+        <span className={overlap ? 'rounded-full ring-4 ring-white' : ''}>
+          <BasketAvatar address={entry.address} symbol={label} imageUrl={identity?.avatarUrl || meta?.avatarUrl || undefined} size={52} />
+        </span>
         <div className="min-w-0">
-          <Link to={`/creator/${entry.address}`} className="block truncate font-display text-xl font-bold leading-tight tracking-tight text-ink transition-colors hover:text-cyan sm:text-2xl">
+          <Link to={creatorPath(entry.address, lookup.status === 'found' ? lookup.owner : null)} className="block truncate font-display text-xl font-bold leading-tight tracking-tight text-ink transition-colors hover:text-cyan sm:text-2xl">
             {label}
           </Link>
           <div className="mt-1 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-faint">
@@ -122,6 +147,32 @@ function CreatorIdentity({ entry, rank }: { entry: CreatorEntry; rank: number })
                 </span>
               ))}
             </span>
+            {xUrl && (
+              <>
+                <span aria-hidden>·</span>
+                <a
+                  href={xUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  title={
+                    xStanding?.kind === 'verified'
+                      ? `@${xStanding.handle} posted this creator address from that account (checked ${xStanding.checkedAt}).`
+                      : `${identity?.handle} on X (creator-provided, unverified)`
+                  }
+                  className="flex items-center gap-1 normal-case tracking-normal text-ink-faint transition-colors hover:text-ink"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden className="h-2.5 w-2.5 fill-current">
+                    <path d="M18.9 2H22l-7 8 7.6 12H16l-5-7.6L4.9 22H2l7.4-8.4L2 2h6.7l4.7 7.1L18.9 2Z" />
+                  </svg>
+                  @{(identity?.handle ?? '').replace(/^@+/, '')}
+                  {xStanding?.kind === 'verified' && (
+                    <svg viewBox="0 0 24 24" aria-label="verified by this site's build" className="h-3 w-3 text-teal" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  )}
+                </a>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -148,7 +199,7 @@ function CreatorIdentity({ entry, rank }: { entry: CreatorEntry; rank: number })
       </div>
 
       <Link
-        to={`/creator/${entry.address}`}
+        to={creatorPath(entry.address, lookup.status === 'found' ? lookup.owner : null)}
         className="press inline-flex w-fit items-center gap-2 rounded-full border border-black/10 px-4 py-1.5 font-display text-[12px] font-bold uppercase tracking-[0.14em] text-ink transition-colors hover:border-cyan/50 hover:text-cyan"
       >
         View creator
@@ -206,10 +257,25 @@ function BasketCarousel({ entry }: { entry: CreatorEntry }) {
  *  2026-08-21 "efficient in rpc usage"): off-screen creators cost nothing; the
  *  one shared useAllBaskets sweep already supplies every summary number. */
 function CreatorRowLive({ entry, rank }: { entry: CreatorEntry; rank: number }) {
+  // THE PUBLISHED PROFILE DRESSES THE ROW (owner 2026-08-23). One read per
+  // row, the same cached query the creator pages and the /creators rail run;
+  // the banner spans the card with the house fades (to white - this page IS
+  // the fixed white plane), and the identity block climbs into its foot.
+  const { data: identity } = useCreatorIdentity(entry.address)
+  const banner = identity?.bannerUrl ?? null
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
-      <CreatorIdentity entry={entry} rank={rank} />
-      <BasketCarousel entry={entry} />
+    <div>
+      {banner && (
+        <div className="relative mb-4 h-24 overflow-hidden rounded-2xl sm:h-28">
+          <img src={banner} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+          <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(90deg, #fff 0%, transparent 12%, transparent 88%, #fff 100%)' }} />
+          <span aria-hidden className="absolute inset-x-0 bottom-0 h-12" style={{ background: 'linear-gradient(180deg, transparent, #fff)' }} />
+        </div>
+      )}
+      <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+        <CreatorIdentity entry={entry} rank={rank} identity={identity ?? null} overlap={!!banner} />
+        <BasketCarousel entry={entry} />
+      </div>
     </div>
   )
 }

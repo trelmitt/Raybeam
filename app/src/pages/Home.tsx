@@ -306,7 +306,7 @@ function HeroShowcase({ baskets }: { baskets: BasketSummary[] }) {
           <div className="mt-7 flex items-center gap-3">
             <Link
               to={basketHref(ix)}
-              className="press rounded-lg bg-cyan px-6 py-2.5 font-mono text-xs font-bold uppercase tracking-[0.16em] text-black hover:opacity-90"
+              className="press rounded-lg bg-cyan px-6 py-2.5 font-mono text-xs font-bold uppercase tracking-[0.16em] text-void hover:opacity-90"
             >
               View basket →
             </Link>

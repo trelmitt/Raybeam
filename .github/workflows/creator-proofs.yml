@@ -1,0 +1,102 @@
+# Keep creator X verification TRUE ON THE LIVE SITE, with nobody running anything.
+#
+# The verified flag is COMPILED IN, not looked up at page load — that is the
+# price of refusing to check from the visitor's browser (which would tell X who
+# is reading which creator page). So the truth moving does not move the site:
+# something has to regenerate the artifact and land it on the deploy branch.
+#
+# The canary only ever REPORTED that. This job does it: regenerate, and if the
+# set actually changed, commit the one file. The commit is what triggers the
+# normal site build, so a newly proven creator appears and a badge that has gone
+# false disappears — with no human in the loop.
+#
+# ⚠ IT ONLY WORKS ON THE BRANCH YOUR SITE DEPLOYS FROM.
+# GitHub fires `schedule` on the DEFAULT branch only, so this checks out and
+# commits to the default branch. If your site deploys from a different branch,
+# change `ref`/`branch` below to that branch — otherwise this will faithfully
+# keep a branch nobody serves perfectly up to date.
+#
+# ⚠ WHY IT MAY COMMIT NOTHING FOR DAYS, LEGITIMATELY.
+# The script never revokes on an outage: an unreachable X or an unreadable chain
+# carries existing verifications forward. So "no change" is the normal, healthy
+# result, and a real revocation is the rare one.
+#
+# ⚠ RPC. Ethereum and Base need an endpoint that serves eth_getLogs; the free
+# public ones refuse it. Set the ALCHEMY_KEY secret (the canary already uses
+# CANARY_ALCHEMY_KEY for the same reason). Without it those chains are skipped
+# and their existing badges are carried forward untouched, never dropped.
+name: creator-proofs
+
+on:
+  schedule:
+    # An hour after the canary, so a proof revocation is reported by the canary
+    # and then actually fixed here, rather than the two racing on one checkout.
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+# Write access, like update-from-spectrum.yml already has — so this is not a new
+# risk class, but it is scoped tighter than one: the commit step adds exactly one
+# generated path and nothing else, so no lockfile or cache artifact a step
+# happened to touch can ride along. Kept as its OWN workflow rather than a step
+# on the canary, so the canary keeps its read-only permissions instead of
+# inheriting write just to gain a maintenance job.
+permissions:
+  contents: write
+
+# Never let two runs commit over each other.
+concurrency:
+  group: creator-proofs
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install (exact locked tree)
+        working-directory: app
+        run: npm ci
+
+      - name: Re-check every claim against X (keyless)
+        working-directory: app
+        env:
+          ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY || secrets.CANARY_ALCHEMY_KEY }}
+        run: npm run build:creator-proofs
+
+      # Commit ONLY the generated artifact, and only when it really moved.
+      # `git add` names the single file, so nothing else a step happened to
+      # touch (a lockfile, a cache artifact) can ride along in this commit.
+      - name: Commit the artifact if the set changed
+        id: commit
+        working-directory: app
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/generated/creator-proofs.json; then
+            echo "nothing changed — no commit"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git config user.name  "spectrum-proofs[bot]"
+          git config user.email "noreply@users.noreply.github.com"
+          git add src/generated/creator-proofs.json
+          git commit -m "creator-proofs: refresh verified set" \
+                     -m "Automated daily re-check of creator X link-backs. A verification is only granted when the proof post is from the claimed handle AND names the creator address; an unreachable X or chain carries prior verifications forward rather than revoking them."
+          # Explicit target: never rely on what a detached or renamed local
+          # branch happens to track.
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Say what happened
+        run: |
+          if [ "${{ steps.commit.outputs.changed }}" = "true" ]; then
+            echo "### Verified set changed and was committed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The site rebuild triggered by that commit is what makes it visible." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No change — verified set is already current" >> "$GITHUB_STEP_SUMMARY"
+          fi

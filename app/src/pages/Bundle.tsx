@@ -739,7 +739,7 @@ function BundleBuilder() {
                           type="button"
                           onClick={() => void publish()}
                           disabled={publishState === 'busy'}
-                          className="press rounded-lg bg-cyan px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black hover:opacity-90 disabled:opacity-60"
+                          className="press rounded-lg bg-cyan px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-void hover:opacity-90 disabled:opacity-60"
                         >
                           {publishState === 'busy' ? 'Publishing…' : 'Publish on-chain'}
                         </button>

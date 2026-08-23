@@ -148,7 +148,7 @@ export function CreatorFeed({
               type="button"
               disabled={!draft.trim() || busy !== null}
               onClick={() => write(encodePostJson(draft), 'post')}
-              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-black hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-void hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy === 'post' ? 'Publishing…' : 'Publish'}
             </button>

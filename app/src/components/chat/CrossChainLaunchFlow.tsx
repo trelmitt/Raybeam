@@ -457,6 +457,29 @@ function ChainStep({
   // wallet is asked ONCE, at the moment the signature is next
   useDeployAutoSwitch({ sw, status: state.status, targetChainId: chainId, connected: isConnected, walletChainId })
 
+  // THE SWITCH IS ALSO THE LEG'S FIRST ACT (owner 2026-08-23: "waiting for
+  // wallet to be on X - can we just do the auto switch on their behalf?").
+  // `enabled` gates prepare on walletChainId === chainId, and the
+  // signature-time ask above can only fire once prepare has produced a
+  // 'ready' - so a wrong-chain wallet deadlocked the leg at "waiting" until
+  // the human switched by hand. The one-ask law holds: exactly one
+  // dapp-initiated request per leg activation (the consent was the launch
+  // button), and a decline is final - the line below explains the hand and we
+  // never nag.
+  const askedSwitch = useRef(false)
+  useEffect(() => {
+    if (!active || done || skipped) {
+      askedSwitch.current = false
+      return
+    }
+    if (askedSwitch.current) return
+    if (!isConnected || walletChainId === undefined || walletChainId === chainId) return
+    if (sw.switching || sw.declined) return
+    askedSwitch.current = true
+    sw.switchNow()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, done, skipped, isConnected, walletChainId, chainId, sw.switching, sw.declined])
+
   // the canvas's numbers if the user set them, the equal split if not. Guarded
   // on length and total so a malformed vector can never reach a deploy.
   const weights = useMemo(() => {
@@ -673,7 +696,11 @@ function ChainStep({
       )}
       {active && !liveHere && isConnected && walletChainId !== chainId && !err && (
         <p className="text-[12px] text-ink-faint">
-          {sw.declined ? `Your wallet declined the switch. Switch it to ${shortName(chainId)} to carry on.` : `Waiting for your wallet to be on ${shortName(chainId)}.`}
+          {sw.declined
+            ? `Your wallet declined the switch. Switch it to ${shortName(chainId)} to carry on.`
+            : sw.switching
+              ? `Check your wallet to approve the switch to ${shortName(chainId)}.`
+              : `Waiting for your wallet to be on ${shortName(chainId)}.`}
         </p>
       )}
       {bridgeOpen && <BridgeFund destChainId={chainId} onClose={() => setBridgeOpen(false)} arrivalsShown={false} />}

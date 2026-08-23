@@ -305,7 +305,7 @@ export function LearnWalkthrough({
             <button
               type="button"
               onClick={() => setStep((v) => Math.min(v + 1, last))}
-              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-black hover:opacity-90"
+              className="press rounded-lg bg-cyan px-5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-void hover:opacity-90"
             >
               Next →
             </button>

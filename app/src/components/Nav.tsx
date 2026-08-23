@@ -93,7 +93,9 @@ export const moreVisitorLinks: { to: string; label: string }[] = [
   // the creators DISCOVERY page — browse the people, not the baskets (owner
   // 2026-08-21: in the dropdown, not the top bar). Rides the same 'discover'
   // gate as /explore; a visitor link, always visible.
-  ...(P('discover') ? [{ to: '/creators/explore', label: 'Creators' }] : []),
+  // /creators, not /creators/explore (owner 2026-08-23): the menu leads with
+  // the pitch-and-build page; the leaderboard is linked from it.
+  ...(P('discover') ? [{ to: '/creators', label: 'Creators' }] : []),
   ...(P('integrate') ? [{ to: '/integrate', label: 'Integrate' }] : []),
   // The one GENERAL fee surface (owner 2026-08-01, relayed by R: "maybe we still
   // should have a general fee page with flush but reworded in the menu"). The

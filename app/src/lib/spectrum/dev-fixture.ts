@@ -717,6 +717,36 @@ export function devCreatorMeta(address: string, chainId: number): VerifiedCreato
 import type { VerifiedCreatorIdentity } from './creator-identity'
 
 const DEV_IDENTITY: Record<string, VerifiedCreatorIdentity> = {
+  // THE WHOLE-PAGE DEMO CREATOR (2026-08-22). MOCK_DEPLOYER already owns the
+  // fixture's only VERSION CHAIN (DEVBKT superseded by DEVBK2) plus two
+  // standalone baskets, and it had no signed identity — so the page that shows
+  // "what each new version changed" was the one page with no banner, no thesis
+  // and no circles, and the page with all of those had nothing versioned. No
+  // single URL demonstrated the page. This gives that creator the identity half
+  // too, so /creator/0x…d0e0 exercises every part at once: hero banner, photo,
+  // handle, linked X, thesis, conviction circles, the basket carousel, the swap
+  // card and a record with a real version delta.
+  //
+  // DEV-ONLY, like everything in this file: gated behind active(chainId) and
+  // never present in a shipped build.
+  [MOCK_DEPLOYER.toLowerCase()]: {
+    verified: true,
+    creator: MOCK_DEPLOYER as Address,
+    handle: '@devbasket',
+    name: 'Dev Basket Works',
+    avatarUrl: avatarFor('D', '#ff4db8', '#a48bff'),
+    bannerUrl: DEV_BANNER,
+    bio: 'Two sleeves, one token: the majors that settle everything, and the culture trade that pays for the ride. I publish a new version rather than quietly changing one, so you can always see what I changed and what it did.',
+    picks: [
+      { address: T.WETH.asset, note: 'the settlement layer — everything here prices in it' },
+      { address: T.cbBTC.asset, note: 'the hardest collateral onchain, and the sleeve I never trade' },
+      { address: T.DEGEN.asset, note: 'the culture trade, sized so it cannot hurt the book' },
+      { address: T.USDC.asset, note: 'dry powder, held on purpose rather than by accident' },
+    ].map((x) => ({ address: x.address as Address, note: x.note })),
+    issuedAt: 1_753_900_000,
+    chainId: 8453,
+    delegate: null,
+  },
   [MOCK_C1]: {
     verified: true,
     creator: MOCK_C1 as Address,

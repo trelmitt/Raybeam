@@ -35,6 +35,32 @@ describe('rewriteOgHtml', () => {
     expect(out).toContain('property="og:url" content="https://spectrum.xyz/creator/0x1111111111111111111111111111111111111111"')
   })
 
+  // THE FORM THE CLAIM CEREMONY ACTUALLY HANDS OUT. ClaimHandle builds
+  // `${origin}/creator/<claimed-name>` and posts it to X, and that link used to
+  // preview as the generic site card because only the address form was matched.
+  it('names the creator when the URL carries a claimed handle', () => {
+    const out = rewriteOgHtml(SAMPLE, creatorMeta('onchainmaxi', 'https://spectrum.xyz'))
+    expect(out).toContain('<title>@onchainmaxi · Spectrum creator</title>')
+    expect(out).toContain('property="og:url" content="https://spectrum.xyz/creator/onchainmaxi"')
+    expect(out).toContain('content="Every basket @onchainmaxi makes, on one page.')
+    // the generic site title must not survive anywhere
+    expect(out).not.toContain('Spectrum · onchain baskets')
+  })
+
+  it('carries no numbers in creator card copy (crawlers cache for days)', () => {
+    const m = creatorMeta('onchainmaxi', 'https://spectrum.xyz')
+    expect(`${m.title} ${m.description}`).not.toMatch(/\$\d|\d[\d,.]*\s*%/)
+  })
+
+  it('points at a creator card when one was rendered, the generic one when not', () => {
+    expect(creatorMeta('onchainmaxi', 'https://spectrum.xyz').image).toBe('https://spectrum.xyz/og.png')
+    expect(creatorMeta('onchainmaxi', 'https://spectrum.xyz', true).image).toBe('https://spectrum.xyz/og/creator/onchainmaxi.png')
+    // an address key is lowercased so the path matches what a build would write
+    expect(creatorMeta('0xAAAA111111111111111111111111111111111111', 'https://x.y', true).image).toBe(
+      'https://x.y/og/creator/0xaaaa111111111111111111111111111111111111.png',
+    )
+  })
+
   it('rewrites for the refer page', () => {
     const out = rewriteOgHtml(SAMPLE, referMeta('https://spectrum.xyz'))
     expect(out).toContain('<title>Refer &amp; earn · Spectrum</title>')

@@ -24,6 +24,7 @@ import homeBgBubbles from '../assets/home-bg-bubbles.svg'
 // mascot sprites stay off the first paint
 const ChatEmbed = lazy(() => import('./Chat').then((m) => ({ default: m.Chat })))
 import { MadeBasket } from '../components/MadeBasket'
+import { CreatorChip } from '../components/CreatorChip'
 import { IntroArt } from '../components/home/IntroArt'
 import homeHeroArt from '../assets/home-hero-v2.jpg'
 import homeHeroArt1280 from '../assets/home-hero-v2.1280.jpg'
@@ -494,7 +495,21 @@ export function HomeSpine() {
     [convictions, chain],
   )
 
-  const creators = buildCreatorLeaderboard(all).length
+  // THE HOMEPAGE HAD A CREATOR COUNT AND NOT ONE CREATOR (owner 2026-08-21:
+  // "anything more we can do to highlight creators"). The board was already
+  // being built here just to read .length off it, so the faces cost nothing
+  // extra — and /creators/explore had exactly two inbound links in the whole
+  // app, neither of them from the front door.
+  const board = useMemo(() => buildCreatorLeaderboard(all), [all])
+  const creators = board.length
+  // THREE, not five. The board is keyed on DEPLOYER ADDRESS while the label
+  // comes from signed metadata, so two addresses can render the same name and a
+  // long strip shows one person twice — which it did, at five, on the front
+  // door. Collapsing those into one identity is a product decision (which
+  // address is "the" creator) and belongs to the board both surfaces read, not
+  // to a rule invented here: a homepage-only dedupe would make the strip and
+  // the leaderboard disagree. Three faces read cleaner at this width anyway.
+  const topCreators = useMemo(() => board.slice(0, 3), [board])
   const tvl = all.reduce((s, b) => s + (b.aumUsd || 0), 0)
   const chains = new Set(all.map((b) => b.chainId)).size
   const c = useCountUp(creators, creators > 0, 900)
@@ -853,6 +868,32 @@ export function HomeSpine() {
               ]}
             />
           </div>
+          {/* THE COUNT GETS FACES. A basket is one person's thesis, so the
+              number above is only worth reading if you can meet them: the top
+              creators by combined value, each a link to their page, and the one
+              front-door route into /creators/explore. Absent rather than empty
+              when the board has nobody — never a heading over a blank row. */}
+          {topCreators.length > 0 && (
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">the people behind them</span>
+              {topCreators.map((e) => (
+                <CreatorChip
+                  key={e.address}
+                  deployer={e.address}
+                  basket={e.topBasket.address}
+                  chainId={e.topBasket.chainId}
+                  size={22}
+                  className="text-[13px]"
+                />
+              ))}
+              <Link
+                to="/creators/explore"
+                className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-dim transition-colors hover:text-cyan"
+              >
+                All {creators} creators →
+              </Link>
+            </div>
+          )}
         </section>
       )}
 

@@ -34,7 +34,7 @@ import { markTickerDeployed } from '../lib/spectrum/launch-journey'
 // the builder every pick ultimately lands in enforces the same bound, so a
 // local cap here was a second statement of one constraint (it sat at 8, which
 // a 3-network bundle hit fast — owner greenlit raising it 2026-08-12).
-import { MAX_ASSETS } from '../lib/spectrum/weights'
+import { MAX_ASSETS, MIN_ASSETS, SINGLE_ASSET_NOTE } from '../lib/spectrum/weights'
 import { bundleSubjectOf, clearLandedLanes, loadLandedLanes, recordLandedLane } from '../lib/spectrum/landed-lanes'
 import { BasketBento, type BentoItem } from '../components/BasketBento'
 import { TrimBar } from '../components/TrimBar'
@@ -1694,15 +1694,25 @@ export function Composer({
               a rail and a button on one line leave the rail ~120px, which is
               worse than the two-line reading — and the phone's CTA lives in the
               dock anyway, where it cannot be scrolled away from. */}
+          {/* ONE ASSET IS A BASKET (the owner 2026-08-13: "for simplicity can't
+              we allow a basket to just have one asset? since the multi-chain
+              baskets can always have one asset on one chain and a future
+              upgrade could always add more"). The ≥2 wall here was OURS, never
+              the factory's — a one-leg deployBasket eth_call-simulates green on
+              both production factories (pinned by single-asset-basket.test.ts).
+              That ruling landed in the studio wizard and this door never got
+              it, so /create kept telling people a one-asset basket was
+              impossible while the chat happily deployed them. What replaces a
+              block is a sentence: MIN_ASSETS here, SINGLE_ASSET_NOTE on shape. */}
           <button
             type="button"
-            disabled={assets.length < 2}
+            disabled={assets.length < MIN_ASSETS}
             onClick={() => setStage('shape')}
             className="press hidden h-11 shrink-0 rounded-xl px-6 font-display text-sm font-bold uppercase tracking-[0.15em] text-black transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 sm:block"
             style={{ background: SPECTRAL }}
           >
             {/* the CTA names WHAT HAPPENS NEXT, not the step number */}
-            {assets.length < 2 ? 'Pick at least two →' : `Shape ${assets.length} assets →`}
+            {assets.length < MIN_ASSETS ? 'Pick an asset →' : `Shape ${assets.length} asset${assets.length === 1 ? '' : 's'} →`}
           </button>
         </div>
       )}
@@ -1732,11 +1742,11 @@ export function Composer({
               <div className="flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-panel/90 p-1.5 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.85)] backdrop-blur-xl">
                 <button
                   type="button"
-                  disabled={assets.length < 2}
+                  disabled={assets.length < MIN_ASSETS}
                   onClick={() => setStage('shape')}
                   className="spectral-btn press flex h-11 shrink-0 items-center rounded-full px-5 font-display text-[12px] font-bold uppercase tracking-[0.1em] text-void disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {assets.length < 2 ? 'Pick at least two →' : `Shape ${assets.length} assets →`}
+                  {assets.length < MIN_ASSETS ? 'Pick an asset →' : `Shape ${assets.length} asset${assets.length === 1 ? '' : 's'} →`}
                 </button>
               </div>
             </nav>
@@ -2053,7 +2063,7 @@ export function Composer({
               header, where the mix they describe actually is */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">
-              {assets.length} assets weighted · {weights.reduce((s, w) => s + w, 0).toFixed(0)}%
+              {assets.length} asset{assets.length === 1 ? '' : 's'} weighted · {weights.reduce((s, w) => s + w, 0).toFixed(0)}%
             </span>
             <button
               type="button"
@@ -2065,6 +2075,12 @@ export function Composer({
               Continue · name &amp; fees →
             </button>
           </div>
+          {/* THE SENTENCE THAT REPLACED THE BLOCK. Same shared line the studio
+              wizard says at Review, so both doors describe a one-asset basket
+              identically — a fact the buyer is owed, not a warning. */}
+          {assets.length === 1 && (
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-dim">{SINGLE_ASSET_NOTE}</p>
+          )}
         </div>
       )}
 

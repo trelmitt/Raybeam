@@ -1,3 +1,16 @@
+// ⚠ ITS PHONE OFFSET CLEARS TWO FIXED THINGS, NOT ONE (owner 2026-08-22: "on
+// mobile the agent circle in bottom right overlaps the buy button"). It sat at a
+// flat 4.75rem, which was wrong twice over: the token page's phone mini-buy bar
+// is itself fixed at 3.5rem + the safe area (Token.tsx), so the circle landed
+// inside it — measured overlapping "Buy $DEVBK2" at 414x896 — and 76px is LESS
+// than a notched phone's tab bar (57 + 34 of inset), so on real hardware the
+// circle was partly behind the bar it was meant to sit above. 7rem cleared the
+// buy bar by exactly 1px when measured at 390x844, which is touching rather than
+// clearing, so it is
+// 8rem + env(safe-area-inset-bottom): the tab bar, the mini-buy bar, and the
+// inset, in one expression. The panel's max height drops by the same amount so
+// it cannot grow past the top of the screen.
+//
 // THE SITE-WIDE SPECTER (owner 2026-08-20): a small circle bottom-right on
 // every page except /chat, the mascot idling inside it; click pops the
 // streamlined chat (WidgetChat — the full system minus the stage column).
@@ -63,7 +76,7 @@ export function SpecterWidget() {
           timers and any in-flight turn survive) */}
       {openedOnce.current && (
         <div
-          className="fixed bottom-[4.75rem] right-4 z-[55] h-[min(640px,calc(100dvh-10rem))] w-[min(400px,calc(100vw-2rem))] lg:bottom-4 lg:h-[min(640px,calc(100dvh-5.5rem))]"
+          className="fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] right-4 z-[55] h-[min(640px,calc(100dvh-14rem))] w-[min(400px,calc(100vw-2rem))] lg:bottom-4 lg:h-[min(640px,calc(100dvh-5.5rem))]"
           style={{ display: open ? undefined : 'none', paddingBottom: 'env(safe-area-inset-bottom)' }}
           role="dialog"
           aria-label="Chat with Agent Specter"
@@ -91,7 +104,7 @@ export function SpecterWidget() {
           onClick={() => setOpen(true)}
           aria-label="Chat with Agent Specter"
           title="Chat with Specter"
-          className="group fixed bottom-[4.75rem] right-4 z-[55] rounded-full p-[2px] shadow-[0_10px_32px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 active:scale-95 lg:bottom-4"
+          className="group fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] right-4 z-[55] rounded-full p-[2px] shadow-[0_10px_32px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 active:scale-95 lg:bottom-4"
           style={{ background: GRADIENT, marginBottom: 'env(safe-area-inset-bottom)' }}
         >
           <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-void">

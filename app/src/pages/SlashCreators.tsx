@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { showSymbol } from '../lib/spectrum/safe-copy'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useActiveChainId, setActiveChainId } from '../lib/chain/active-chain'
 import { chainCfg } from '../lib/chain/chains'
 import { deploymentFor } from '../lib/chain/deployments'
@@ -17,6 +17,17 @@ import { CreateAssetPicker } from '../components/launch/CreateAssetPicker'
 import { resolveAsset, type BuilderAsset } from '../lib/spectrum/version-seed'
 import { basketSignatureColor } from '../lib/spectrum/signature'
 import { tokenVisual } from '../lib/spectrum/token-meta'
+import { MIN_ASSETS } from '../lib/spectrum/weights'
+import { useQueries } from '@tanstack/react-query'
+import { useAllBaskets, useCreatorMeta } from '../lib/spectrum/hooks'
+import { useHandleRegistry } from '../lib/spectrum/use-handles'
+import { buildCreatorLeaderboard } from '../lib/spectrum/leaderboard'
+import { resolveCreatorIdentityAny, type VerifiedCreatorIdentity } from '../lib/spectrum/creator-identity'
+import { creatorPath } from '../lib/spectrum/handle-registry'
+import { xStandingFor } from '../lib/spectrum/creator-proofs'
+import { BasketAvatar } from '../components/BasketAvatar'
+import { Carousel } from '../components/Carousel'
+import type { Address } from 'viem'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // "Slash Creators" — the /creators route: a marketing + onboarding funnel for
@@ -652,7 +663,11 @@ function BullishFlow() {
   // it builds the bundle directly. Never a "wrong network" refusal.
   const chains = [...new Set(picks.map((p) => p.chainId))]
   const isBundle = chains.length >= 2
-  const canCreate = picks.length >= 2 && !busy
+  // ONE ASSET IS A BASKET (the owner 2026-08-13's one-asset law, pinned by
+  // lib/spectrum/single-asset-basket.test.ts). This door carried the same ≥2
+  // wall /create did; the recruitment page must not be stricter than the
+  // factory it recruits for.
+  const canCreate = picks.length >= MIN_ASSETS && !busy
 
   const add = (chainId: number, address: string, symbol?: string) =>
     setPicks((ps) => (ps.some((p) => bullKey(p) === bullKey({ chainId, address })) ? ps : [...ps, { chainId, address, symbol: symbol ?? address.slice(0, 6) }]))
@@ -735,7 +750,12 @@ function BullishFlow() {
         <h2 className="font-display text-3xl font-bold uppercase leading-[0.95] tracking-tight text-ink sm:text-4xl">Pick what you&rsquo;re bullish on</h2>
         <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.16em] text-ink-faint">Tap the tokens · search any network · paste an address</p>
       </div>
-      <div className="card-surface rounded-2xl p-4 sm:p-6">
+      {/* THE EXPLAINER COMES FIRST (owner 2026-08-23: "this should go above
+          the pick what you're bullish on asset picker") - a visitor reads what
+          the machine does, then picks. */}
+      <HowBasketsWork />
+
+      <div className="card-surface mt-8 rounded-2xl p-4 sm:p-6">
         <CreateAssetPicker picked={picks.map((p) => ({ chainId: p.chainId, address: p.address }))} full={picks.length >= 12} busy={busy} onPick={add} onRemove={remove} />
       </div>
 
@@ -744,8 +764,6 @@ function BullishFlow() {
           Your picks span {chains.map((c) => chainCfg(c).name.replace(/\s*chain$/i, '')).join(', ')}. A basket lives on one chain, so this becomes a BUNDLE: one basket per chain, wrapped into a single page. The next step builds it for you.
         </p>
       )}
-
-      <HowBasketsWork />
 
       {error && <p className="mt-6 rounded-xl border border-magenta/30 bg-magenta/[0.06] p-3 text-center font-mono text-[12px] text-ink-dim">{error}</p>}
 
@@ -757,11 +775,171 @@ function BullishFlow() {
           className="press w-full max-w-md rounded-2xl px-6 py-4 text-center font-display text-base font-bold uppercase tracking-[0.06em] text-void transition-transform enabled:hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-40"
           style={{ background: GRADIENT }}
         >
-          {busy ? 'Preparing…' : !canCreate ? 'Pick at least 2 assets' : isBundle ? `Create your bundle · ${picks.length} assets across ${chains.length} chains` : `Create your basket · ${picks.length} assets`}
+          {busy ? 'Preparing…' : !canCreate ? 'Pick an asset' : isBundle ? `Create your bundle · ${picks.length} assets across ${chains.length} chains` : `Create your basket · ${picks.length} asset${picks.length === 1 ? '' : 's'}`}
         </button>
         <p className="font-mono text-[11px] text-ink-faint">No code · about a minute · you set the fee and name at deploy</p>
       </div>
     </div>
+  )
+}
+
+// ── THE PEOPLE ALREADY HERE (owner 2026-08-23: "a stunning carousel above the
+// see-what-you-can-make / fee area which shows all the creators who have
+// created their creator pages… and after them all the wallets that haven't
+// customized, 3 rows per column"). One rail, two populations: creators with a
+// PUBLISHED profile (the on-chain identity: banner/avatar/thesis) wear a rich
+// card; bare deployers follow as compact rows, three to a slide. Identity
+// reads mirror useCreatorIdentity's key/fn exactly (the useBasketSectors
+// pattern), so the creator pages and this rail share one cache.
+/** One un-dressed wallet on the rail. It borrows the leaderboard's own trick:
+ *  a wallet with no PROFILE often still has a basket-signed name (the top
+ *  basket's creator metadata), and "0x1234…5678" where "DiamondDan" exists is
+ *  the page refusing to read what it already knows. Registry-claimed name
+ *  first, basket-signed handle/name next, the address as the honest floor.
+ *  The meta query key mirrors useCreatorMeta everywhere else - shared cache. */
+function BareRow({
+  entry,
+  claimed,
+}: {
+  entry: { address: string; topBasket: { address: string; chainId: number }; basketCount: number; combinedTvl: number }
+  claimed: { display: string } | null
+}) {
+  const { data: meta } = useCreatorMeta(entry.topBasket.address, entry.topBasket.chainId)
+  const label =
+    claimed?.display || (meta?.handle ?? '').trim() || (meta?.name ?? '').trim() || `${entry.address.slice(0, 6)}…${entry.address.slice(-4)}`
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="block truncate font-mono text-[12px] text-ink">{label}</span>
+      <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+        {entry.basketCount} basket{entry.basketCount === 1 ? '' : 's'} · {formatUsdCompact(entry.combinedTvl)}
+      </span>
+    </span>
+  )
+}
+
+function CreatorsRail() {
+  const { data, isLoading } = useAllBaskets()
+  const entries = useMemo(() => buildCreatorLeaderboard(data ?? []), [data])
+  // the claimed names, one registry read shared with every other name surface -
+  // links prefer /creator/<name> and fall back to the address form (owner
+  // 2026-08-23: the rail linked the raw address even for named creators)
+  const reg = useHandleRegistry()
+  const nameOf = (addr: string) =>
+    reg.data?.status === 'ok' ? (reg.data.map.byAddress.get(addr.toLowerCase()) ?? null) : null
+  const identities = useQueries({
+    queries: entries.map((e) => ({
+      queryKey: ['spectrum', 'creatorIdentity', e.address.toLowerCase()],
+      queryFn: () => resolveCreatorIdentityAny(e.address as Address),
+      staleTime: 60_000,
+      gcTime: 30 * 60_000,
+    })),
+  })
+  const { dressed, bare } = useMemo(() => {
+    const dressed: { entry: (typeof entries)[number]; id: VerifiedCreatorIdentity }[] = []
+    const bare: (typeof entries)[number][] = []
+    entries.forEach((e, i) => {
+      const id = identities[i]?.data ?? null
+      if (id) dressed.push({ entry: e, id })
+      else bare.push(e)
+    })
+    return { dressed, bare }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, identities.map((r) => r.data).filter(Boolean).length])
+
+  // reserve the section while the chain answers - the rail popping in late
+  // shoved the whole page down, which read as a glitch
+  if (entries.length === 0 && isLoading)
+    return (
+      <section className="mx-auto max-w-5xl px-4" aria-busy>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={`h-44 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03] ${i === 2 ? 'hidden sm:block' : ''}`} />
+          ))}
+        </div>
+      </section>
+    )
+  if (entries.length === 0) return null
+  const bareColumns: (typeof entries)[] = []
+  for (let i = 0; i < bare.length; i += 3) bareColumns.push(bare.slice(i, i + 3))
+
+  return (
+    <section className="mx-auto max-w-5xl scroll-mt-20 px-4">
+      <div className="mb-6 text-center">
+        <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint">Already here</div>
+        <h2 className="mt-2 font-display text-3xl font-bold uppercase leading-[0.95] tracking-tight text-ink sm:text-4xl">
+          The creators using it
+        </h2>
+      </div>
+      <Carousel label="Creators on this site" gridFrom="never" arrows peek="46%" resetKey={dressed.length + bareColumns.length}>
+        {dressed.map(({ entry, id }) => (
+          <Link
+            key={entry.address}
+            to={creatorPath(entry.address, nameOf(entry.address))}
+            className="press block h-full min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-white/25"
+          >
+            {/* their art, or a quiet identity wash — the page hero's own banner
+                grammar, at card scale (owner 2026-08-23: "a little larger, use
+                more height just to the bottom of the logo"): the band's bottom
+                edge lands at the avatar's bottom (-mt-16 = the logo's full 64px
+                with its ring), the taper fading behind its lower half. */}
+            <span className="relative block h-28">
+              {id.bannerUrl ? (
+                <img src={id.bannerUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <span aria-hidden className="absolute inset-0 opacity-35" style={{ background: 'linear-gradient(120deg,var(--color-cyan),var(--color-violet-bright),var(--color-magenta))' }} />
+              )}
+              <span aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, var(--color-panel, var(--color-void)))' }} />
+            </span>
+            <span className="relative z-10 -mt-16 flex flex-col items-center px-4 pb-4 text-center">
+              <span className="overflow-hidden rounded-full ring-4 ring-void">
+                <BasketAvatar address={entry.address} symbol={id.name || 'creator'} imageUrl={id.avatarUrl || undefined} size={56} />
+              </span>
+              <span className="mt-2 flex max-w-full items-center gap-1.5">
+                <span className="truncate font-display text-base font-bold text-ink">
+                  {id.name || id.handle || `${entry.address.slice(0, 6)}…${entry.address.slice(-4)}`}
+                </span>
+                {/* the build-checked X tick, the page's own standing rule - it
+                    renders nothing until a proof verifies, and lights here the
+                    same moment it lights on their page */}
+                {xStandingFor(id.chainId, entry.address, id.handle).kind === 'verified' && (
+                  <svg viewBox="0 0 24 24" aria-label="X account verified by this site's build" className="h-3.5 w-3.5 shrink-0 text-teal" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
+              </span>
+              {id.bio && <span className="mt-1 line-clamp-2 max-w-[34ch] text-[12px] leading-snug text-ink-dim">{id.bio}</span>}
+              <span className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+                {entry.basketCount} basket{entry.basketCount === 1 ? '' : 's'} · {formatUsdCompact(entry.combinedTvl)} held
+              </span>
+            </span>
+          </Link>
+        ))}
+        {bareColumns.map((col) => (
+          <div key={col[0].address} className="flex h-full min-w-0 flex-col gap-2">
+            {col.map((e) => (
+              <Link
+                key={e.address}
+                to={creatorPath(e.address, nameOf(e.address))}
+                className="press flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/25"
+              >
+                <BasketAvatar address={e.address} symbol="?" size={32} />
+                <BareRow entry={e} claimed={nameOf(e.address)} />
+              </Link>
+            ))}
+          </div>
+        ))}
+      </Carousel>
+      {/* the door to the ranked view (owner 2026-08-23: "below the creator
+          carousel we should have a link to the leaderboard") */}
+      <div className="mt-5 text-center">
+        <Link
+          to="/creators/explore"
+          className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-dim transition-colors hover:text-cyan"
+        >
+          The leaderboard →
+        </Link>
+      </div>
+    </section>
   )
 }
 
@@ -807,13 +985,21 @@ export function SlashCreators() {
           {/* THE ONE LINE (owner 2026-08-20: "stupidly easy to understand what
               this is in one line") — the whole product in one sentence, said
               plainly, bigger than a sub normally is. */}
+          {/* TWO LINES, NOT FOUR (owner 2026-08-23: "needs to be condensed
+              only two lines"): the pitch, then one row that folds the facts
+              and the proof-of-people link together. The recruits-page link
+              survives (owner 2026-08-21) - it just rides the fact line now. */}
           <p className="mt-7 max-w-2xl text-lg font-medium leading-snug text-ink sm:text-xl [text-wrap:balance]">
             {rhStocks
-              ? 'You pick stocks and tokens. They become one coin your audience can buy. You earn a cut of every trade.'
-              : 'You pick the tokens. They become one coin your audience can buy. You earn a cut of every trade.'}
+              ? 'Pick stocks and tokens. They become one coin your audience can buy, and you earn on every trade.'
+              : 'Pick tokens. They become one coin your audience can buy, and you earn on every trade.'}
           </p>
-          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">
-            {rhStocks ? 'NVDA · SPY · ETH in a single basket · no code, about a minute' : 'No code · about a minute · across Ethereum, Base and Robinhood'}
+          <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">
+            <span>{rhStocks ? 'NVDA · SPY · ETH in one basket · no code, about a minute' : 'No code · about a minute · Ethereum, Base and Robinhood'}</span>
+            <span aria-hidden>·</span>
+            <Link to="/creators/explore" className="text-ink-dim transition-colors hover:text-cyan">
+              See who is already doing it →
+            </Link>
           </p>
         </div>
       </section>
@@ -823,6 +1009,8 @@ export function SlashCreators() {
             (owner 2026-08-21). The real picker, a concise explainer, one click
             into the real builder. ─────────────────────────────────────────── */}
         <BullishFlow />
+
+        <CreatorsRail />
 
         {/* ── WHAT YOU'D EARN (subordinate to the action above) ─────────────── */}
         <Section

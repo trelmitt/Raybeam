@@ -10,6 +10,28 @@
     <meta name="description" content="Spectrum is software for creating and reading onchain basket tokens on Base. Each basket is a single token that holds a whole basket of assets." />
     <meta name="theme-color" content="#07070b" />
 
+    <!-- THE FIRST FRAME IS THE LIGHT PLANE (owner 2026-08-23: "light mode should
+         always be the default colour on first load"). The stylesheet's base
+         tokens are the dark plane and the light re-skin arrives from JS, so a
+         cold load painted one dark frame before the bundle ran - visible on
+         every fresh visit. This runs before the stylesheet paints: default and
+         'enterprise' get a light ground immediately; a viewer who explicitly
+         chose the dark plane keeps it, no flash in either direction. The hex
+         mirrors the enterprise preset's void; applyBrand overwrites it moments
+         later, so drift here can only ever last one frame.
+         ⚠ Operator flipping DEFAULT_MODE in theme/design-mode.ts to ship a dark
+         brand? Flip the condition here too, or your visitors get one light
+         frame first. -->
+    <script>
+      try {
+        if (localStorage.getItem('spectrum:design-mode') !== 'default') {
+          var d = document.documentElement
+          d.style.backgroundColor = '#f6f7f9'
+          d.setAttribute('data-style', 'enterprise')
+        }
+      } catch (e) {}
+    </script>
+
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- relative: an absolute /site.webmanifest 404s under IPFS/ENS gateway

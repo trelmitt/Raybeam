@@ -38,6 +38,59 @@ function Pillar({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
+// ── THE FOUR CLAIMS, DRAWN (owner 2026-08-21: "make this more visual") ───────
+// They were four grey slabs of six-line prose, identical in shape, sitting
+// four-up in 226px columns — a wall of text where the mechanism was the
+// interesting part. Each claim now carries a FIGURE of its own mechanism and
+// exactly one line of words, two-up so the figure has room to be legible.
+//
+// The figures are HTML, not SVG, on purpose: real text stays crisp and the
+// theme tokens keep working, which matters more than usual now that light is
+// the plane a visitor lands on. Every stroke is currentColor or a brand token —
+// a `white/x` hairline would simply vanish on paper. Deliberately four
+// DIFFERENT diagram forms (an absent slot, a boundary, a measured track, a
+// message), because four variations of one icon row is the thing that reads as
+// filler.
+const Node = ({ children, tone }: { children: ReactNode; tone?: 'accent' }) => (
+  <span
+    className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
+      tone === 'accent' ? 'border-cyan/45 bg-cyan/10 text-ink' : 'border-ink/20 bg-ink/[0.04] text-ink-dim'
+    }`}
+  >
+    {children}
+  </span>
+)
+
+/** A flow arrow with its protocol/payload named above the line. */
+const Arrow = ({ label }: { label?: string }) => (
+  <span className="flex min-w-8 flex-1 flex-col items-center gap-1">
+    {label && <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-faint">{label}</span>}
+    <svg viewBox="0 0 48 8" aria-hidden className="h-2 w-full" preserveAspectRatio="none">
+      <line x1="0" y1="4" x2="42" y2="4" stroke="currentColor" strokeWidth="1" className="text-ink/30" />
+      <path d="M42 1.5 L47 4 L42 6.5 Z" fill="currentColor" className="text-ink/45" />
+    </svg>
+  </span>
+)
+
+const KeyGlyph = ({ struck }: { struck?: boolean }) => (
+  <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 shrink-0">
+    <circle cx="5.5" cy="5.5" r="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M7.8 7.8 L13 13 M10.5 13 L13 13 L13 10.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    {struck && <path d="M1.5 14.5 L14.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />}
+  </svg>
+)
+
+function Claim({ title, line, figure }: { title: string; line: string; figure: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-ink/12 bg-ink/[0.03] p-6 transition-colors hover:border-ink/25">
+      {/* the figure leads: it is the argument, the sentence only names it */}
+      <div className="flex h-18 items-center">{figure}</div>
+      <div className="mt-4 font-display text-lg font-bold uppercase tracking-tight text-ink">{title}</div>
+      <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">{line}</p>
+    </div>
+  )
+}
+
 export function Mcp() {
   return (
     <div className="pb-10">
@@ -81,23 +134,101 @@ export function Mcp() {
       </section>
 
       {/* ── the four claims that matter ── */}
-      <section className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Pillar title="Nothing to host">
-          No daemon, no port, no server bill. Your MCP client spawns it per session over stdio and it reads the
-          chains directly. Build once, register once, done.
-        </Pillar>
-        <Pillar title="Never holds keys">
-          Every action returns a transaction plus a plain-English review. Your wallet signs, or nothing happens.
-          Autonomous sending exists only behind an operator key you set yourself.
-        </Pillar>
-        <Pillar title="Floors from live simulation">
-          A buy or sell floor is derived by simulating the actual trade on-chain, minus a bounded slippage.
-          An agent supplies an amount and a tolerance. It can never supply a floor.
-        </Pillar>
-        <Pillar title="Refuses in words">
-          An unknown chain, a decimal where raw units belong, an unbuyable basket: each refusal is a sentence
-          that says what happened and what to do, decoded from the protocol&rsquo;s own errors.
-        </Pillar>
+      <section className="mt-14 grid gap-6 sm:grid-cols-2">
+        {/* THE MISSING BOX IS THE POINT: the slot where a server would sit is
+            drawn, dashed and empty, between the two things that do exist. */}
+        <Claim
+          title="Nothing to host"
+          line="Your client spawns it per session, over stdio."
+          figure={
+            <div className="flex w-full items-center gap-2">
+              <Node>your client</Node>
+              <Arrow label="stdio" />
+              <span className="flex shrink-0 flex-col items-center gap-1 rounded-lg border border-dashed border-ink/25 px-2.5 py-1.5">
+                <svg viewBox="0 0 12 12" aria-hidden className="h-3 w-3 text-ink-faint">
+                  <path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-faint">no server</span>
+              </span>
+              <Arrow />
+              <Node tone="accent">the chains</Node>
+            </div>
+          }
+        />
+        {/* THE TWO KEYS ARE THE POINT: struck on the side that composes, live on
+            the side that signs. An earlier version drew the signing boundary as
+            a dashed vertical rule and it rendered as a 15px stub colliding with
+            the arrowhead — the keys say it without the furniture, and three
+            nodes match the row above. */}
+        <Claim
+          title="Never holds keys"
+          line="Every action comes back for you to sign."
+          figure={
+            <div className="flex w-full items-center gap-2">
+              <span className="flex shrink-0 items-center gap-1.5 rounded-lg border border-ink/20 bg-ink/[0.04] px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-dim">
+                <KeyGlyph struck />
+                agent
+              </span>
+              <Arrow label="unsigned" />
+              <span className="flex shrink-0 items-center gap-1.5 rounded-lg border border-violet-bright/45 bg-violet-bright/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink">
+                <KeyGlyph />
+                your wallet
+              </span>
+              <Arrow label="signed" />
+              <Node>chain</Node>
+            </div>
+          }
+        />
+        {/* THE MEASUREMENT IS THE POINT: the floor is the far end of a band the
+            simulation opens, and the only thing an agent hands over is how wide
+            that band may be. */}
+        <Claim
+          title="Floors from live simulation"
+          line="The real trade, minus your tolerance."
+          figure={
+            <div className="w-full">
+              <div className="flex items-baseline justify-between font-mono text-[9px] uppercase tracking-[0.14em]">
+                <span className="text-cyan">simulated on chain</span>
+                <span className="text-ink-dim">floor</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-cyan" />
+                {/* the band stays visible to its end: a floor is a definite
+                    point, so fading it to nothing argued the opposite */}
+                <span
+                  className="h-1.5 flex-1 rounded-full"
+                  style={{ background: 'linear-gradient(90deg,var(--color-cyan),color-mix(in srgb,var(--color-cyan) 45%,transparent))' }}
+                />
+                <span className="h-3.5 w-1 shrink-0 rounded-full bg-ink/70" />
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-ink-faint">
+                <svg viewBox="0 0 8 6" aria-hidden className="h-1.5 w-2">
+                  <path d="M4 0 L8 6 L0 6 Z" fill="currentColor" />
+                </svg>
+                the agent sets only this width
+              </div>
+            </div>
+          }
+        />
+        {/* THE ARTEFACT IS THE POINT: show an actual refusal, decoded, rather
+            than describing the shape of one. */}
+        <Claim
+          title="Refuses in words"
+          line="Refusals say what happened and what to do."
+          figure={
+            <div className="w-full rounded-xl border border-magenta/35 bg-magenta/[0.06] p-3">
+              <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-magenta">
+                <svg viewBox="0 0 12 12" aria-hidden className="h-2.5 w-2.5">
+                  <path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                refused
+              </div>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-ink">
+                Chain 999 is not configured. Use 1, 8453 or 4663.
+              </p>
+            </div>
+          }
+        />
       </section>
 
       {/* ── what a conversation looks like ── */}

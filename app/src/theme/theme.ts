@@ -33,6 +33,15 @@ const VAR_MAP: Record<keyof OperatorTheme, string> = {
 export function operatorBrandToTheme(brand: BrandConfig): OperatorTheme {
   const preset = STYLE_PRESETS[brand.style] ?? STYLE_PRESETS.spectral
   const p = brand.palette
+  // THE LIGHT-SOURCE HUES DO NOT SURVIVE ONTO PAPER (owner 2026-08-19, and
+  // again 2026-08-23: "still would like the cyan changed on light mode").
+  // The enterprise preset already folds cyan/magenta/amber into authority
+  // inks readable on white - its own comment says every token consumer
+  // follows from there - but this overlay put the brand's gradient stops
+  // straight back over them, so #35e0ff (1.6:1 on paper) returned the moment
+  // any brand carried a gradient, which the house brand does. On paper the
+  // preset's inks are the accents; the gradient is a dark-plane identity.
+  if (brand.style === 'enterprise') return { ...preset }
   return {
     ...preset,
     amber: p.gradientFrom || preset.amber,
@@ -60,6 +69,13 @@ export function applyBrandVars(
  */
 export function applyBrand(brand: BrandConfig, el: HTMLElement = document.documentElement): void {
   applyBrandVars(operatorBrandToTheme(brand), el)
+  // The first-frame hint (index.html) stamps an INLINE light background on the
+  // root before the stylesheet paints. Inline styles outlive SPA navigation
+  // and beat every stylesheet rule, so if no apply clears it, a viewer who
+  // loads light and TOGGLES dark keeps a light ground bleeding through every
+  // transparent region (owner 2026-08-23: "some areas light on dark mode").
+  // Every apply therefore ends the hint's life: the tokens own the ground now.
+  el.style.removeProperty('background-color')
   const sv = structureToCssVars(brand.style)
   Object.keys(sv).forEach((k) => el.style.setProperty(k, sv[k]))
   el.setAttribute('data-style', brand.style)

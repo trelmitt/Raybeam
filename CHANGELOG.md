@@ -7,6 +7,57 @@ version FROM `version.json`, so bumping the json is the whole code-side release 
 Releases touching the launch/trading money paths carry a `Sacred:` line naming them
 (how releases work end to end: `docs/RELEASES.md`).
 
+## 2026.08.23
+
+Sacred: launch, swap
+
+The sacred diffs are small and named: `launch` because the one-asset-is-a-basket ruling now reaches
+the composer flow (previously only the modern create page knew it), plus a text-colour token on the
+builder's solid buttons; `swap` because Token.tsx carries the same one-line token change. No calldata,
+router target, amount math or chain set moved anywhere in this release.
+
+**Creator profiles, end to end.** A creator publishes a profile - name, thesis, banner, avatar,
+bullish picks - as one on-chain note, and every surface reads it: their own page (banner running to
+their name, their record per basket, a streamlined buy above it), the /creators rail of everyone
+building here, and the leaderboard, whose rows now wear the published banner, avatar, bio and X
+handle. Bare wallets fall back to their basket-signed names, then the address.
+
+**X verification (new, optional).** A creator proves their X account by posting a link-back from it
+and pasting the post into their profile. The check is keyless (X's oEmbed; no API key, no account)
+and runs at build time: `npm run build:creator-proofs` writes `app/src/generated/creator-proofs.json`,
+and the badge is compiled in - a claimed handle never shows as verified because of anything the
+creator wrote. Two workflows ship: the daily canary re-checks proofs and fails ONLY when a live badge
+stops checking out, and `creator-proofs.yml` regenerates and commits the artifact itself (needs the
+default branch; grants itself `contents: write` scoped to that one file). **Config notes:** reading
+profiles on Ethereum and Base needs an RPC that serves `eth_getLogs` - set `ALCHEMY_KEY` (public
+endpoints refuse it; Robinhood Chain's own endpoint works). An unreachable X or chain carries prior
+verifications forward, never revokes on an outage. Creators without a claimed kit name keep a
+full-address proof post; with one, the post binds by name and shows no wallet hex.
+
+**Light mode from the first frame.** The stylesheet's base tokens are the dark plane, so cold loads
+painted one dark frame before the bundle ran; an inline hint in `index.html` now grounds the page
+light before the stylesheet paints, and every brand apply ends the hint's life so a viewer who chose
+dark keeps a dark ground everywhere. **Config note for dark-brand operators:** if you flip
+`DEFAULT_MODE` to `'default'`, flip the hint condition in `app/index.html` with it, or your visitors
+get one light frame first.
+
+**The light plane keeps its inks.** The enterprise preset folds the brand gradient's light-source
+hues into authority colours readable on white - but the theming bridge overlaid the operator gradient
+back on top, so the near-invisible cyan kept returning. On the enterprise style the preset now wins
+whole; solid cyan fills swap hardcoded black text for the token that flips with the plane.
+
+**The multichain launch switches the wallet itself.** A leg could not even prepare until the wallet
+was on its chain, and the automatic switch only fired once preparing produced a ready - so wrong-chain
+legs sat at "waiting for your wallet". The switch is now the leg's first act: one dapp-initiated
+request per leg, a decline is final and explained, no nagging.
+
+**Refinements.** The portfolio chart sizes its money-axis gutter from the exact tick labels it will
+draw and reclaims a retired caption; the phone widget clears notched tab bars; the bottom menu is
+opaque; the creator editor previews exactly what the page will show (image links sanitized the same
+way, banner fades included), inlines uploaded avatars at 128px, and guards against editing a profile
+from the wrong network (it prefills from wherever the profile lives and says so). The house league
+art left the creator hero: an uploaded banner is the stage now.
+
 ## 2026.08.21d
 
 No money path moved: nothing here touches launch, swap, the shared money modules or the executor,

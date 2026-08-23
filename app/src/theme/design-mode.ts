@@ -29,7 +29,9 @@ const KEY = 'spectrum:design-mode'
  *  style, so pressing it still reaches the design the operator shipped.
  *
  *  ⚠ THE ONE CONSTANT AN OPERATOR FLIPS. Self-hosting a dark brand and want it
- *  to greet visitors? Set this to 'default' and brand.config governs again. */
+ *  to greet visitors? Set this to 'default' and brand.config governs again -
+ *  and flip index.html's first-frame hint with it, or visitors get one light
+ *  frame before your brand paints. */
 const DEFAULT_MODE: ViewerDesignMode = 'enterprise'
 
 /** What the viewer CHOSE, or null when they have never touched the toggle —

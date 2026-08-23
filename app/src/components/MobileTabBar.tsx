@@ -234,10 +234,19 @@ export function MobileTabBar() {
 
   return (
     <>
-      {/* the bar — z-50 like the header, above the z-40 band canvas */}
+      {/* the bar — z-50 like the header, above the z-40 band canvas.
+          OPAQUE ENOUGH TO READ AS THE FLOOR (owner 2026-08-22: "the mobile menu
+          at the bottom should be fixed to the bottom of the screen right now you
+          can see content below it like its not fully at the bottom"). It IS
+          fixed to the floor and always was — measured at 414x896 its bottom is
+          the viewport's bottom exactly, with nothing laid out beneath it. What
+          he was seeing was page content scrolling THROUGH a 15%-transparent bar,
+          which reads as a bar that has not reached the bottom. At 95% the blur
+          still shows the bands as a hint and the content behind it stops
+          competing with the tabs. */}
       <nav
         aria-label="Primary"
-        className={`fixed inset-x-0 bottom-0 z-50 border-t border-line bg-void/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl transition-transform duration-200 ${keyboardUp ? 'translate-y-full' : 'translate-y-0'} ${hideAt}`}
+        className={`fixed inset-x-0 bottom-0 z-50 border-t border-line bg-void/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl transition-transform duration-200 ${keyboardUp ? 'translate-y-full' : 'translate-y-0'} ${hideAt}`}
       >
         <div className="mx-auto grid h-14 max-w-md auto-cols-fr grid-flow-col">
           {tabs.map((t) => (

@@ -1,8 +1,15 @@
-import type { CSSProperties } from 'react'
+import { lazy, Suspense, useState, type CSSProperties } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BasketBuilder } from '../components/launch/BasketBuilder'
 import { ResumeLaunchCard } from '../components/launch/ResumeLaunchCard'
 import { Composer, parseChainParam } from './Composer'
+
+// The five-slide walkthrough (product, creator earnings, versions, league, and
+// "launch yours in about a minute") — the site's one real teaching artifact.
+// Lazy, exactly as Explore mounts it, so a cold /create pays nothing for it.
+const LearnWalkthrough = lazy(() =>
+  import('../components/LearnWalkthrough').then((m) => ({ default: m.LearnWalkthrough })),
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /create — THE creation route (owner 2026-08-12: "/launch needs to be replaced
@@ -32,6 +39,7 @@ import { Composer, parseChainParam } from './Composer'
 
 export function Create() {
   const [params] = useSearchParams()
+  const [learnOpen, setLearnOpen] = useState(false)
   const from = params.get('from') ?? undefined
   // parseChainParam (the Composer's table-driven parser, ONE implementation),
   // not Number(): an alias ("rh") or unsupported value silently fell back to
@@ -52,11 +60,46 @@ export function Create() {
   // Composer cannot — a studio draft left on another chain, and any basket
   // already deployed that is not yet seeded or written. Self-hiding: with
   // nothing outstanding it renders nothing at all.
+  // THE COLD START. This page opened by asking for assets and said nothing
+  // about what a basket is, what it earns, or what publishing costs — a
+  // first-timer's very first screen was a token grid and a disabled button
+  // (owner 2026-08-21, on making it easier to onboard creators). The teaching
+  // already existed one page over, on /creators and in LearnWalkthrough; it was
+  // mounted on Explore, League and Portfolio and on no creation surface at all.
+  // So: one line saying what happens, the honest cost beside it, and the
+  // walkthrough a click away. No new copy invented for the wizard itself.
   if (!studio)
     return (
       <>
         <ResumeLaunchCard composerDraftRestoredHere className="mb-6" />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <p className="text-[15px] leading-relaxed text-ink-dim">
+            Pick the assets, weight them, name it, deploy. Your basket becomes one token anyone can buy, and you
+            set the fee you earn on every trade.
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              to="/creators"
+              className="press inline-flex min-h-[36px] items-center rounded-full border border-white/15 bg-white/[0.04] px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-dim transition-colors hover:border-cyan/50 hover:text-cyan"
+            >
+              What you earn
+            </Link>
+            <button
+              type="button"
+              onClick={() => setLearnOpen(true)}
+              className="press inline-flex min-h-[36px] items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-dim transition-colors hover:border-cyan/50 hover:text-cyan"
+            >
+              <span aria-hidden className="grid h-3.5 w-3.5 place-items-center rounded-full border border-current text-[8px] leading-none">?</span>
+              How this works
+            </button>
+          </div>
+        </div>
         <Composer face="create" />
+        {learnOpen && (
+          <Suspense fallback={null}>
+            <LearnWalkthrough closeLabel="Back to creating" onClose={() => setLearnOpen(false)} />
+          </Suspense>
+        )}
       </>
     )
 

@@ -70,14 +70,31 @@ export function basketMeta(
   }
 }
 
-export function creatorMeta(addr: string, origin: string): OgMeta {
-  const s = short(addr)
+// A CREATOR'S OWN LINK HAS TO CARRY THEIR NAME (owner 2026-08-21). The claim
+// ceremony hands a new creator `${origin}/creator/<name>` and a Share-on-X
+// button for it, and that was the ONE form this never matched: the edge only
+// recognised the 40-hex address form, so the link we actively tell people to
+// post previewed as the generic site card, with the generic site title.
+//
+// The fix needs no lookup, which is the whole reason it is cheap: when the URL
+// carries a claimed name, the NAME IS THE LABEL, sitting right there in the
+// path. Only the address form has to fall back to a truncated hex.
+//
+// Still no numbers in card copy (§9): crawlers cache previews for days, and a
+// stale holder count or value figure would be a misleading claim.
+export function creatorMeta(idOrHandle: string, origin: string, hasCard = false): OgMeta {
+  const isAddress = /^0x[0-9a-fA-F]{40}$/.test(idOrHandle)
+  // handles are stored lowercase and rendered with the @ the site shows
+  const label = isAddress ? short(idOrHandle) : `@${idOrHandle.toLowerCase()}`
+  const key = isAddress ? idOrHandle.toLowerCase() : idOrHandle.toLowerCase()
   return {
-    title: `${s} · Spectrum creator`,
-    description: `Onchain basket tokens created by ${s} on Spectrum. One token, a whole basket of assets.`,
-    image: `${origin}/og.png`,
-    url: `${origin}/creator/${addr}`,
-    imageAlt: `${s}, a creator on Spectrum`,
+    title: `${label} · Spectrum creator`,
+    description: isAddress
+      ? `Onchain basket tokens created by ${label} on Spectrum. One token, a whole basket of assets.`
+      : `Every basket ${label} makes, on one page. Onchain basket tokens on Spectrum: one token, a whole basket of assets.`,
+    image: hasCard ? `${origin}/og/creator/${key}.png` : `${origin}/og.png`,
+    url: `${origin}/creator/${idOrHandle}`,
+    imageAlt: `${label}, a creator on Spectrum`,
   }
 }
 

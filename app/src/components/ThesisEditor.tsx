@@ -123,7 +123,7 @@ export function ThesisEditor({
           type="button"
           onClick={publish}
           disabled={busy}
-          className="rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-black press hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          className="rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-void press hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
         >
           {busy ? 'Confirming…' : 'Publish on-chain'}
         </button>
